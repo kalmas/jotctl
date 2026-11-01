@@ -104,6 +104,7 @@ def test_resolve_value():
         ({"template": "{{ monday.__class__ }}"}, "template failed: access to attribute '__class__'"),
         ({"template": "{% if false %}x{% endif %}"}, "template produced nothing"),
         ({"template": "{{ saturday.at('25:00') }}"}, "template failed: time data '25:00'"),
+        ({"template": "{{ saturday.at('10:00', 'Mars/Base') }}"}, "template failed: 'No time zone found"),
         (None, "unsupported value"),
         ([1], "unsupported value"),
     ],
@@ -608,6 +609,10 @@ def test_example_manifest_is_valid():
     assert len(values) == 9
     for value in values:
         assert resolve_value(value)
+    email_values = [v for f in forms for props in f.emails.values() for v in props.values()]
+    assert len(email_values) == 2
+    for value in email_values:
+        assert isinstance(value, bool) or resolve_value(value)
 
 
 def test_cli_apply_dry_run(props_api, tmp_path):

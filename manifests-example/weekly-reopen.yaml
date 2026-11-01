@@ -7,10 +7,12 @@
 #   properties: form settings (see `jotctl describe form <form> -o yaml` for common ones)
 #   questions:  question name (see `jotctl get questions --form <form>`) → property → value
 #   conditions: condition ID (see `jotctl get conditions --form <form>`) → terms → question tested → property → value
+#   emails:     email name (see `jotctl get emails --form <form>`) → property → value; true/false become 1/0
 #
 # A value is used as written, or computed:
 #   template: Jinja with date helpers: `today`, `monday` … `sunday` (the next such day, always after
-#             today), `weeks(n)`, `days(n)`, `<day>.at('HH:MM')` and the `date('<strftime format>')`
+#             today), `weeks(n)`, `days(n)`, `<day>.at('HH:MM')` (add a zone such as 'America/New_York'
+#             as a second argument; `%:z` then prints its offset) and the `date('<strftime format>')`
 #             filter. Wrap arithmetic in parentheses before `| date(...)`.
 #   script:   a shell command whose output is used.
 forms:
@@ -42,6 +44,12 @@ forms:
             appointmentDate:
               value:
                 template: "{{ saturday | date('%Y-%m-%d') }}"
+      emails:
+        Autoresponder:
+          subject:
+            template: Your appointment on {{ saturday | date('%b %-d') }} is confirmed
+        Notification 1:
+          disabled: false  # true/false become Jotform's 1/0
   - 251234567890:  # a form can also be named by its ID
       questions:
         signupDeadline:

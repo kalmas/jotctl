@@ -28,6 +28,11 @@ Learned while building this tool; check before relying on anything marked unveri
 - **Updating conditions** means sending the whole list back with
   `PUT /form/{id}/properties` and `{"properties": {"conditions": [...]}}` (unverified that Jotform
   accepts it). `apply` backs up the originals and re-reads the form to check.
+- **Form emails** (notifications and autoresponders) are the `emails` entry of
+  `GET /form/{id}/properties` (`/properties/emails` returns 404): a list of dicts with `name`,
+  `type` (`notification`/`autorespond`), `to`, `from`, `replyTo`, `subject`, HTML `body`,
+  `disabled` ("0"/"1"), `uniqueID` and more. Updating sends the whole list back like conditions
+  (unverified). `pdfPassword` is secret and is redacted like `passwordProtectPass`.
 - **Open/closed settings** are form properties: `status`, `expireDate` + `expireDateTimeZone`
   (`"No Limit"` when unset), `limitSubmission` vs `count`, `messageOfLimitedForm`,
   `passwordProtect`. Never print `passwordProtectPass`.

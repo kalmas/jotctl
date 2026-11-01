@@ -53,6 +53,10 @@ poetry run jotctl get questions --form 251234567890 -o json   # every property o
 poetry run jotctl get conditions --form 'Form Name'
 poetry run jotctl get conditions --form 251234567890 -o json   # decoded terms and actions
 
+# A form's emails: notifications and autoresponders
+poetry run jotctl get emails --form 'Form Name'                      # name, type, enabled, to, from, subject
+poetry run jotctl describe email Autoresponder --form 'Form Name'    # every setting, body as plain text
+
 # Submissions: summarize, list and export
 poetry run jotctl describe submissions --form 251234567890               # totals, unread, flagged, by month
 poetry run jotctl get submissions --form 251234567890                    # ID, submitted at, status
@@ -61,16 +65,18 @@ poetry run jotctl get submissions --form 251234567890 -o csv > submissions.csv
 poetry run jotctl get submissions --form 251234567890 -o csv --normalize-headers > submissions.csv   # snake_case headers, max 20 chars
 poetry run jotctl get submissions --form 251234567890 --include-deleted -o json
 
-# Apply manifests: update form properties, question properties and condition terms.
+# Apply manifests: update form properties, question properties, condition terms and emails.
 # See manifests-example/weekly-reopen.yaml for a commented example. Per form:
 #   properties → property (e.g. status, expireDate, limitSubmission, messageOfLimitedForm; see `describe form -o yaml`)
 #   questions → question → property
 #   conditions → condition ID → terms → question → property
+#   emails → email name → property (e.g. subject, body, to, disabled; true/false become 1/0)
 # Values may be {template: ...}: Jinja with date helpers (today, monday … sunday = the next such day,
-# weeks(n), days(n), <day>.at('HH:MM'), | date('%b %-d')), e.g. "{{ (saturday + weeks(1)) | date('%Y-%m-%d') }}".
+# weeks(n), days(n), <day>.at('HH:MM') or <day>.at('HH:MM', 'America/New_York') for a time zone,
+# | date('%b %-d'); %:z prints the offset, e.g. -05:00), e.g. "{{ (saturday + weeks(1)) | date('%Y-%m-%d') }}".
 # {script: ...} runs a shell command instead.
-# Condition IDs are in the ID column of `get conditions`. Before changing a form's conditions, the
-# originals are saved to data/backups/<form ID>-conditions-<timestamp>.json (--backup-dir to change).
+# Condition IDs are in the ID column of `get conditions`. Before changing a form's conditions or emails,
+# the originals are saved to data/backups/<form ID>-conditions|emails-<timestamp>.json (--backup-dir to change).
 poetry run jotctl diff -f manifests/weekly-reopen.yaml    # show old → new; exits 1 if anything would change
 poetry run jotctl apply -f manifests/weekly-reopen.yaml   # show old → new, ask, then apply
 poetry run jotctl apply -f manifests/                     # every .yaml/.yml in the folder

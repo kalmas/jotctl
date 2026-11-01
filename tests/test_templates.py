@@ -22,6 +22,18 @@ SATURDAY = date(2026, 10, 31)
         ("{{ saturday.at('15:00') | date('%Y-%m-%d %H:%M') }}", THURSDAY, "2026-10-31 15:00"),
         ("{{ (saturday + weeks(1)).at('9:05') | date('%-I:%M %p') }}", THURSDAY, "9:05 AM"),
         ("custom_{{ saturday | date('%Y-%m-%d') }}", THURSDAY, "custom_2026-10-31"),
+        # Time zones: Nov 4 is after US daylight saving ends (-05:00); Oct 28 is before it (-04:00).
+        (
+            "{{ wednesday.at('12:00', 'America/New_York') | date('%Y-%m-%dT%H:%M:%S%:z') }}",
+            SATURDAY,
+            "2026-11-04T12:00:00-05:00",
+        ),
+        (
+            "{{ wednesday.at('12:00', 'America/New_York') | date('%Y-%m-%dT%H:%M:%S%:z') }}",
+            date(2026, 10, 24),
+            "2026-10-28T12:00:00-04:00",
+        ),
+        ("{{ monday.at('9:30', 'UTC') | date('%H:%M %z') }}", THURSDAY, "09:30 +0000"),
         ("We're open {{ saturday | date('%b %-d') }}.", THURSDAY, "We're open Oct 31."),
     ],
 )
@@ -40,9 +52,17 @@ def test_render_matches_bsd_date_scripts():
         assert next_sat - today.toordinal() in range(1, 8)
 
 
-@pytest.mark.parametrize("template", ["{{ nope }}", "{{ today.__class__ }}", "{{ saturday.at('25:00') }}"])
+@pytest.mark.parametrize(
+    "template",
+    [
+        "{{ nope }}",
+        "{{ today.__class__ }}",
+        "{{ saturday.at('25:00') }}",
+        "{{ saturday.at('10:00', 'Mars/Base') }}",
+    ],
+)
 def test_render_errors(template):
-    with pytest.raises((TemplateError, ValueError)):
+    with pytest.raises((TemplateError, ValueError, LookupError)):
         render(template, today=THURSDAY)
 
 

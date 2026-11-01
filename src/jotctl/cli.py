@@ -21,9 +21,10 @@ from typer.core import TyperGroup
 
 from jotctl import availability, backups, manifests, reports
 from jotctl import conditions as conds
+from jotctl import emails as form_emails
 from jotctl import submissions as subs
 from jotctl.banner import print_banner
-from jotctl.client import FormOrderBy, FormStatus, JotformClient, JotformError, Region
+from jotctl.client import FormOrderBy, FormStatus, JotformClient, JotformError, Region, redact
 from jotctl.questions import ordered_questions
 
 load_dotenv()
@@ -113,6 +114,8 @@ class AliasGroup(TyperGroup):
         "submission": ("submissions",),
         "sub": ("submissions",),
         "subs": ("submissions",),
+        "email": ("emails",),
+        "emails": ("email",),
     }
 
     def get_command(self, ctx: typer.Context, cmd_name: str) -> Any:
@@ -125,12 +128,14 @@ class AliasGroup(TyperGroup):
 
 
 get_app = typer.Typer(
-    help="List resources: forms, questions, conditions, submissions (singular names and q/sub work too).",
+    help="List resources: forms, questions, conditions, emails, submissions (singular names and q/sub work too).",
     no_args_is_help=True,
     cls=AliasGroup,
 )
 describe_app = typer.Typer(
-    help="Show details about a form or its submissions.", no_args_is_help=True, cls=AliasGroup
+    help="Show details about a form, one of its emails, or its submissions.",
+    no_args_is_help=True,
+    cls=AliasGroup,
 )
 delete_app = typer.Typer(help="Delete resources.", no_args_is_help=True, cls=AliasGroup)
 app.add_typer(get_app, name="get")
@@ -520,6 +525,59 @@ def get_submissions(
     )
 
 
+@get_app.command("emails")
+def get_emails(
+    ctx: typer.Context,
+    form: Annotated[str, FORM_OPTION],
+    output: Annotated[Output, output_option(*Output)] = Output.TABLE,
+) -> None:
+    """List a form's emails: notifications and autoresponders."""
+    try:
+        with get_client(ctx) as client:
+            form_id = client.resolve_form_id(form)
+            emails = form_emails.raw_emails(client.get_form_properties(form_id).get("emails"))
+    except JotformError as e:
+        raise fail(e) from None
+
+    def row(e: dict[str, Any]) -> list[str]:
+        return [
+            e.get("name", ""),
+            form_emails.type_label(e),
+            "yes" if form_emails.is_enabled(e) else "no",
+            e.get("to", ""),
+            e.get("from", ""),
+            e.get("replyTo", ""),
+            e.get("subject", ""),
+        ]
+
+    columns = ["Name", "Type", "Enabled", "To", "From", "Reply-to", "Subject"]
+    emit(
+        Listing(
+            title=f"Emails on form {form_id}",
+            columns=columns,
+            rows=[row(e) for e in emails],
+            wide_columns=[*columns, "CC", "BCC", "On submit", "On edit", "Send date", "ID"],
+            wide_rows=[
+                [
+                    *row(e),
+                    e.get("cc", ""),
+                    e.get("bcc", ""),
+                    e.get("sendOnSubmit", ""),
+                    e.get("sendOnEdit", ""),
+                    e.get("sendDate", ""),
+                    e.get("uniqueID", ""),
+                ]
+                for e in emails
+            ],
+            row_styles=[None if form_emails.is_enabled(e) else "dim" for e in emails],
+            data=json.loads(redact(json.dumps(emails))),
+            names=[e.get("name", "") for e in emails],
+            empty="No emails found.",
+        ),
+        output,
+    )
+
+
 # ---------------------------------------------------------------------------------------------
 # describe
 
@@ -588,6 +646,42 @@ def describe_form(
             ]
         )
     )
+
+
+@describe_app.command("email")
+def describe_email(
+    ctx: typer.Context,
+    name: Annotated[str, typer.Argument(help="The email's name or uniqueID (see `jotctl get emails`).")],
+    form: Annotated[str, FORM_OPTION],
+    output: Annotated[
+        Output, output_option(Output.TABLE, Output.WIDE, Output.JSON, Output.YAML)
+    ] = Output.TABLE,
+) -> None:
+    """Show every setting of one form email, with its body as plain text."""
+    check_output(output, Output.TABLE, Output.WIDE, Output.JSON, Output.YAML)
+    try:
+        with get_client(ctx) as client:
+            form_id = client.resolve_form_id(form)
+            emails = form_emails.raw_emails(client.get_form_properties(form_id).get("emails"))
+        email = emails[form_emails.find_email(emails, name)]
+    except (JotformError, LookupError) as e:
+        raise fail(e) from None
+
+    email = json.loads(redact(json.dumps(email)))
+    if output in (Output.JSON, Output.YAML):
+        emit(Listing("", [], [], email), output)
+        return
+    rows: list[tuple[str, Any]] = [
+        ("Form", form_id),
+        ("Name", email.get("name", "")),
+        ("Type", form_emails.type_label(email)),
+        ("Enabled", "yes" if form_emails.is_enabled(email) else "no"),
+    ]
+    rows += [(key, value) for key, value in email.items() if key not in ("name", "type", "disabled", "body")]
+    console.print(_grid(rows))
+    console.print()
+    console.print(Text("Body", style="bold"))
+    console.print(Text(form_emails.body_text(str(email.get("body", ""))) or "(empty)"))
 
 
 @describe_app.command("submissions")
@@ -685,11 +779,19 @@ class FormPlan:
     """The form's conditions as read, which condition changes are applied to."""
     condition_changes: list[manifests.ConditionChange]
     property_changes: list[manifests.PropertyChange]
+    emails: list[dict] = field(default_factory=list)
+    """The form's emails as read, which email changes are applied to."""
+    email_changes: list[manifests.EmailChange] = field(default_factory=list)
 
     @property
     def total(self) -> int:
         """Number of changes on this form."""
-        return len(self.changes) + len(self.condition_changes) + len(self.property_changes)
+        return (
+            len(self.changes)
+            + len(self.condition_changes)
+            + len(self.property_changes)
+            + len(self.email_changes)
+        )
 
 
 def plan_manifests(client: JotformClient, paths: list[Path]) -> tuple[str, list[FormPlan]]:
@@ -701,10 +803,10 @@ def plan_manifests(client: JotformClient, paths: list[Path]) -> tuple[str, list[
         for manifest in form_manifests:
             form_id = client.resolve_form_id(manifest.form)
             questions = client.get_form_questions(form_id)
-            properties = (
-                client.get_form_properties(form_id) if manifest.conditions or manifest.properties else {}
-            )
+            needs_properties = manifest.conditions or manifest.properties or manifest.emails
+            properties = client.get_form_properties(form_id) if needs_properties else {}
             conditions = conds.raw_conditions(properties.get("conditions"))
+            emails = form_emails.raw_emails(properties.get("emails"))
             plans.append(
                 FormPlan(
                     manifest,
@@ -713,6 +815,8 @@ def plan_manifests(client: JotformClient, paths: list[Path]) -> tuple[str, list[
                     conditions,
                     manifests.plan_condition_changes(manifest, conditions, questions),
                     manifests.plan_property_changes(manifest, properties),
+                    emails,
+                    manifests.plan_email_changes(manifest, emails),
                 )
             )
     source = files[0].name if len(files) == 1 else f"{len(files)} files"
@@ -729,18 +833,25 @@ def show_plans(source: str, plans: list[FormPlan]) -> int:
     for column in ["Form", "Target", "Property", "Old", "New"]:
         table.add_column(column, no_wrap=column == "Property")
     for plan in plans:
-        for c in [*plan.property_changes, *plan.changes, *plan.condition_changes]:
-            secret = isinstance(c, manifests.PropertyChange) and c.prop in manifests.SECRET_PROPERTIES
+        for c in [*plan.property_changes, *plan.changes, *plan.condition_changes, *plan.email_changes]:
+            secret = c.prop in manifests.SECRET_PROPERTIES
             if c.old is None:
                 old = Text("(not set)", style="dim")
             else:
-                old = Text("(hidden)", style="dim") if secret else Text(c.old, style="red")
-            new = Text("(hidden)", style="dim") if secret else Text(c.new, style="green")
+                old = Text("(hidden)", style="dim") if secret else Text(_preview(c.old), style="red")
+            new = Text("(hidden)", style="dim") if secret else Text(_preview(c.new), style="green")
             table.add_row(
                 Text(f"{plan.manifest.form} ({plan.form_id})"), Text(c.target), Text(c.prop), old, new
             )
     console.print(table)
     return total
+
+
+def _preview(value: str, limit: int = 200) -> str:
+    """Shorten long values such as HTML email bodies for the change table."""
+    if len(value) <= limit:
+        return value
+    return f"{value[: limit - 1]}… ({len(value):,} characters)"
 
 
 def apply_plans(client: JotformClient, plans: list[FormPlan], backup_dir: Path) -> int:
@@ -795,6 +906,29 @@ def apply_plans(client: JotformClient, plans: list[FormPlan], backup_dir: Path) 
                 applied += len(plan.condition_changes)
                 ids = ", ".join(dict.fromkeys(c.condition_id for c in plan.condition_changes))
                 console.print(Text(f"Updated {plan.manifest.form} → condition(s) {ids}"))
+
+            if plan.email_changes:
+                try:
+                    backup = form_emails.backup_emails(plan.emails, plan.form_id, backup_dir)
+                except OSError as e:
+                    raise JotformError(
+                        f"couldn't back up the emails on {plan.manifest.form}, so they weren't changed: {e}"
+                    ) from None
+                console.print(Text(f"Backed up the emails on {plan.manifest.form} to {backup}"))
+                updated = manifests.apply_email_changes(plan.emails, plan.email_changes)
+                client.update_form_properties(plan.form_id, {"emails": updated})
+                reread = form_emails.raw_emails(client.get_form_properties(plan.form_id).get("emails"))
+                missing = manifests.unapplied_email_changes(reread, plan.email_changes)
+                if missing or len(reread) != len(plan.emails):
+                    raise JotformError(
+                        f"emails on {plan.manifest.form} don't match what was sent "
+                        f"({len(reread)} emails now, {len(plan.emails)} before; "
+                        f"{len(missing)} change(s) not reflected). Check the form's emails "
+                        f"in the Jotform builder; the originals are saved in {backup}."
+                    )
+                applied += len(plan.email_changes)
+                names = ", ".join(dict.fromkeys(c.email for c in plan.email_changes))
+                console.print(Text(f"Updated {plan.manifest.form} → email(s) {names}"))
     except JotformError as e:
         e.applied = applied  # type: ignore[attr-defined]
         raise
@@ -819,15 +953,15 @@ def apply(
         Path,
         typer.Option(
             file_okay=False,
-            help="Before changing a form's conditions, save the original ones here as timestamped JSON.",
+            help="Before changing a form's conditions or emails, save the originals here as timestamped JSON.",
         ),
     ] = backups.DEFAULT_DIR,
 ) -> None:
     """Apply manifests to forms: show every old → new value, ask, then change the forms.
 
-    A manifest sets form properties, question properties and condition terms; values may be
-    `{template: ...}` or `{script: ...}`. Condition changes are sent as the form's whole
-    condition list, backed up first and re-read afterwards to check they took.
+    A manifest sets form properties, question properties, condition terms and email
+    properties; values may be `{template: ...}` or `{script: ...}`. Condition and email changes
+    are sent as the form's whole list, backed up first and re-read afterwards to check they took.
     """
     try:
         with get_client(ctx) as client:

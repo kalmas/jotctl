@@ -39,6 +39,7 @@ from typing import Any
 import yaml
 from jinja2 import TemplateError
 
+from jotctl import emails as form_emails
 from jotctl import templates
 from jotctl.client import SECRET_FIELDS
 from jotctl.conditions import decode_json_list
@@ -46,12 +47,12 @@ from jotctl.questions import ordered_questions
 
 # Form properties a manifest may not set: `conditions` must go through the `conditions` section,
 # which edits individual terms instead of replacing the whole list.
-RESERVED_PROPERTIES = {"conditions"}
+RESERVED_PROPERTIES = {"conditions", "emails"}
 # Form properties whose values are never displayed.
 SECRET_PROPERTIES = SECRET_FIELDS
 
 
-SECTIONS = {"properties", "questions", "conditions"}
+SECTIONS = {"properties", "questions", "conditions", "emails"}
 
 
 class ManifestError(Exception):
@@ -70,6 +71,8 @@ class FormManifest:
     """Condition ID → question tested by a term → term property → raw manifest value."""
     properties: dict[str, Any] = field(default_factory=dict)
     """Form property name → raw manifest value."""
+    emails: dict[str, dict[str, Any]] = field(default_factory=dict)
+    """Email name (or uniqueID) → email property → raw manifest value."""
 
 
 @dataclass
@@ -100,6 +103,24 @@ class PropertyChange:
     def target(self) -> str:
         """What is being changed, for display."""
         return "form"
+
+
+@dataclass
+class EmailChange:
+    """One property of one form email whose value will change."""
+
+    email: str
+    """The email's name (or uniqueID), as written in the manifest."""
+    index: int
+    """Position of the email in the form's `emails` list."""
+    prop: str
+    old: str | None
+    new: str
+
+    @property
+    def target(self) -> str:
+        """What is being changed, for display."""
+        return f"email {self.email}"
 
 
 @dataclass
@@ -156,8 +177,8 @@ def load_manifest(path: Path) -> list[FormManifest]:
         ((form, settings),) = entry.items()
         if not isinstance(settings, dict) or not settings or set(settings) - SECTIONS:
             raise ManifestError(
-                f"{path}: form {form!r} needs one or more of `properties:`, `questions:` and "
-                "`conditions:`, and nothing else"
+                f"{path}: form {form!r} needs one or more of `properties:`, `questions:`, "
+                "`conditions:` and `emails:`, and nothing else"
             )
         properties = settings.get("properties") or {}
         if not isinstance(properties, dict):
@@ -165,7 +186,7 @@ def load_manifest(path: Path) -> list[FormManifest]:
         if reserved := RESERVED_PROPERTIES & set(properties):
             raise ManifestError(
                 f"{path}: form {form!r} can't set {', '.join(sorted(reserved))} under `properties:`; "
-                "use the `conditions:` section to change condition terms"
+                "use the `conditions:` or `emails:` section, which change single values"
             )
         questions = settings.get("questions") or {}
         if not isinstance(questions, dict) or not all(isinstance(p, dict) for p in questions.values()):
@@ -184,12 +205,18 @@ def load_manifest(path: Path) -> list[FormManifest]:
                 f"{path}: form {form!r} needs `conditions: {{<condition ID>: {{terms: "
                 "{{<question name>: {{<property>: <value>}}}}}}}}`"
             )
+        emails = settings.get("emails") or {}
+        if not isinstance(emails, dict) or not all(isinstance(p, dict) for p in emails.values()):
+            raise ManifestError(
+                f"{path}: form {form!r} needs `emails: {{<email name>: {{<property>: <value>}}}}`"
+            )
         manifests.append(
             FormManifest(
                 str(form),
                 questions,
                 {str(cid): c["terms"] for cid, c in conditions.items()},
                 {str(k): v for k, v in properties.items()},
+                {str(name): props for name, props in emails.items()},
             )
         )
     return manifests
@@ -209,7 +236,7 @@ def resolve_value(value: Any) -> str:
     if isinstance(value, dict) and set(value) == {"template"}:
         try:
             output = templates.render(str(value["template"]))
-        except (TemplateError, ValueError) as e:  # ValueError: e.g. a bad time in `.at('25:00')`
+        except (TemplateError, ValueError, LookupError) as e:  # e.g. `.at('25:00')`, an unknown time zone
             raise ManifestError(f"template failed: {e}") from None
         if not output:
             raise ManifestError("template produced nothing")
@@ -388,3 +415,56 @@ def unapplied_property_changes(
 ) -> list[PropertyChange]:
     """Return the changes that a re-read of the form's properties doesn't reflect."""
     return [c for c in changes if properties.get(c.prop) is None or str(properties[c.prop]) != c.new]
+
+
+def plan_email_changes(manifest: FormManifest, emails: list[dict[str, Any]]) -> list[EmailChange]:
+    """Compare a form manifest's `emails` with the form's current emails.
+
+    Emails are found by name, then by uniqueID. Booleans become "1"/"0", as Jotform stores
+    email flags such as `disabled` and `sendOnSubmit`.
+
+    Args:
+        manifest (FormManifest): Changes requested for this form.
+        emails (list[dict[str, Any]]): The form's `emails` property, as returned.
+
+    Returns:
+        list[EmailChange]: The email properties that would change, in manifest order.
+
+    Raises:
+        ManifestError: If an email can't be found or a value can't be produced.
+    """
+    changes = []
+    for ref, props in manifest.emails.items():
+        try:
+            index = form_emails.find_email(emails, ref)
+        except LookupError as e:
+            raise ManifestError(f"form {manifest.form!r}: {e} (see `jotctl get emails --form ...`)") from None
+        for prop, value in props.items():
+            try:
+                new = ("1" if value else "0") if isinstance(value, bool) else resolve_value(value)
+            except ManifestError as e:
+                raise ManifestError(f"{manifest.form} → email {ref}.{prop}: {e}") from None
+            old = emails[index].get(prop)
+            old = None if old is None else str(old)
+            if old != new:
+                changes.append(EmailChange(ref, index, str(prop), old, new))
+    return changes
+
+
+def apply_email_changes(emails: list[dict[str, Any]], changes: list[EmailChange]) -> list[dict[str, Any]]:
+    """Return a copy of a form's emails with the changes made; other emails are returned as given."""
+    updated = copy.deepcopy(emails)
+    for change in changes:
+        updated[change.index][change.prop] = change.new
+    return updated
+
+
+def unapplied_email_changes(emails: list[dict[str, Any]], changes: list[EmailChange]) -> list[EmailChange]:
+    """Return the changes that a re-read of the form's emails doesn't reflect."""
+    return [
+        c
+        for c in changes
+        if c.index >= len(emails)
+        or emails[c.index].get(c.prop) is None
+        or str(emails[c.index][c.prop]) != c.new
+    ]

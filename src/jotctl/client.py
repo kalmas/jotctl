@@ -15,7 +15,7 @@ import httpx
 logger = logging.getLogger("jotctl.http")
 
 # Values never written to logs, wherever they appear in a body.
-SECRET_FIELDS = {"passwordProtectPass"}
+SECRET_FIELDS = {"passwordProtectPass", "pdfPassword"}
 
 
 class Region(StrEnum):

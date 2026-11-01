@@ -70,7 +70,7 @@ def render_query(report: Report) -> str:
     """
     try:
         return templates.render(report.query)
-    except (TemplateError, ValueError) as e:
+    except (TemplateError, ValueError, LookupError) as e:
         raise ReportError(f"query template failed: {e}") from None
 
 

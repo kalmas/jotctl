@@ -6,7 +6,8 @@ Templates run in Jinja's sandbox with these names available:
 - `monday` … `sunday`: the next such day, always after today (on a Saturday, `saturday`
   is a week away).
 - `days(n)`, `weeks(n)`: durations to add or subtract, e.g. `saturday + weeks(1)`.
-- `<day>.at('15:00')`: that day at a time of day.
+- `<day>.at('15:00')`: that day at a time of day; `<day>.at('15:00', 'America/New_York')` adds
+  that time zone, so `%:z` prints its UTC offset (e.g. `-05:00`).
 - `| date('%Y-%m-%d')`: format a date or date-time with strftime codes. `%-d`, `%-m`,
   `%-H`, `%-I`, `%-M` and `%-S` drop the leading zero on every platform.
 
@@ -16,6 +17,7 @@ Filters bind tighter than `+`, so wrap arithmetic in parentheses before formatti
 
 import re
 from datetime import date, datetime, timedelta
+from zoneinfo import ZoneInfo
 
 from jinja2 import StrictUndefined
 from jinja2.sandbox import SandboxedEnvironment
@@ -27,9 +29,14 @@ WEEKDAYS = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", 
 class Day(date):
     """A date that can be combined with a time of day in templates."""
 
-    def at(self, hhmm: str) -> datetime:
-        """This day at `hhmm` (24-hour "H:MM" or "HH:MM"), e.g. `saturday.at('15:00')`."""
-        return datetime.combine(self, datetime.strptime(hhmm, "%H:%M").time())
+    def at(self, hhmm: str, timezone: str | None = None) -> datetime:
+        """This day at `hhmm` (24-hour "H:MM" or "HH:MM"), e.g. `saturday.at('15:00')`.
+
+        With a time zone name such as "America/New_York", the result carries that zone's UTC
+        offset for this date (daylight saving included), which `%z` / `%:z` print.
+        """
+        when = datetime.combine(self, datetime.strptime(hhmm, "%H:%M").time())
+        return when.replace(tzinfo=ZoneInfo(timezone)) if timezone else when
 
 
 def format_date(value: date | datetime, fmt: str) -> str:
