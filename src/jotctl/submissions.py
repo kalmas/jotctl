@@ -136,15 +136,35 @@ def write_csv(
         submissions (list[dict[str, Any]]): Submissions as returned by the Jotform API.
         normalize (bool): Write headers as short snake_case names (see `normalize_headers`).
     """
-    columns = answer_columns(questions)
-    headers = FIXED_COLUMNS + [header for _, header in columns]
+    headers, rows = to_rows(questions, submissions, normalize=normalize)
     # utf-8-sig adds a BOM so Excel detects UTF-8 instead of mangling non-ASCII answers.
     with path.open("w", newline="", encoding="utf-8-sig") as f:
         writer = csv.writer(f)
-        writer.writerow(normalize_headers(headers) if normalize else headers)
-        for s in submissions:
-            answers: dict[str, Any] = s.get("answers") or {}
-            writer.writerow(
-                [s.get("id", ""), s.get("created_at", ""), s.get("status", "")]
-                + [format_answer(answers.get(qid)) for qid, _ in columns]
-            )
+        writer.writerow(headers)
+        writer.writerows(rows)
+
+
+def to_rows(
+    questions: dict[str, dict[str, Any]],
+    submissions: list[dict[str, Any]],
+    *,
+    normalize: bool = False,
+) -> tuple[list[str], list[list[str]]]:
+    """Flatten submissions into a header row and one row of strings per submission.
+
+    Args:
+        questions (dict[str, dict[str, Any]]): Output of `JotformClient.get_form_questions`.
+        submissions (list[dict[str, Any]]): Submissions as returned by the Jotform API.
+        normalize (bool): Use short snake_case headers (see `normalize_headers`).
+
+    Returns:
+        tuple[list[str], list[list[str]]]: Headers, then rows in submission order.
+    """
+    columns = answer_columns(questions)
+    headers = FIXED_COLUMNS + [header for _, header in columns]
+    rows = [
+        [s.get("id", ""), s.get("created_at", ""), s.get("status", "")]
+        + [format_answer((s.get("answers") or {}).get(qid)) for qid, _ in columns]
+        for s in submissions
+    ]
+    return (normalize_headers(headers) if normalize else headers), rows

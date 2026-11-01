@@ -1,6 +1,8 @@
 """Command-line interface for Jotform administration."""
 
+import csv
 import json
+import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Annotated
@@ -12,7 +14,7 @@ from rich.markup import escape
 from rich.table import Table
 from rich.text import Text
 
-from jotctl import availability, backups, manifests
+from jotctl import availability, backups, manifests, reports
 from jotctl import conditions as conds
 from jotctl import submissions as subs
 from jotctl.client import FormOrderBy, FormStatus, JotformClient, JotformError, Region
@@ -24,9 +26,11 @@ app = typer.Typer(help="Automate Jotform form administration.", no_args_is_help=
 forms_app = typer.Typer(help="Manage forms.", no_args_is_help=True)
 questions_app = typer.Typer(help="Inspect a form's questions (fields).", no_args_is_help=True)
 submissions_app = typer.Typer(help="Work with form submissions.", no_args_is_help=True)
+reports_app = typer.Typer(help="Run saved reports: SQL over a form's submissions.", no_args_is_help=True)
 app.add_typer(forms_app, name="forms")
 app.add_typer(questions_app, name="questions")
 app.add_typer(submissions_app, name="submissions")
+app.add_typer(reports_app, name="reports")
 
 console = Console()
 err_console = Console(stderr=True)
@@ -591,6 +595,74 @@ def delete_submissions(
         )
         raise typer.Exit(1)
     console.print(f"Removed {purged} submission(s) for good; the form's trash is empty.")
+
+
+@reports_app.command("run")
+def run_report(
+    ctx: typer.Context,
+    report_path: Annotated[
+        Path,
+        typer.Argument(exists=True, dir_okay=False, readable=True, help="YAML report: `form` and `query`."),
+    ],
+    csv_out: Annotated[
+        Path | None,
+        typer.Option(
+            "--csv", dir_okay=False, writable=True, help="Write the result to this CSV file instead."
+        ),
+    ] = None,
+    from_csv: Annotated[
+        Path | None,
+        typer.Option(
+            "--from-csv",
+            exists=True,
+            dir_okay=False,
+            readable=True,
+            help="Query this saved export (written with --normalize-headers) instead of fetching submissions.",
+        ),
+    ] = None,
+    include_deleted: Annotated[
+        bool, typer.Option("--include-deleted", help="Include submissions marked as deleted.")
+    ] = False,
+) -> None:
+    """Run a saved report: a DuckDB query over a form's submissions, fetched from Jotform.
+
+    The query sees a `submissions` table with the same snake_case columns as
+    `submissions summary --csv FILE --normalize-headers`, and may use `{{ ... }}` date templates.
+    """
+    try:
+        report = reports.load_report(report_path)
+        sql = reports.render_query(report)
+        if from_csv:
+            result = reports.run_query(sql, from_csv)
+        else:
+            with get_client(ctx) as client, err_console.status("Fetching submissions…"):
+                form_id = client.resolve_form_id(report.form)
+                questions = client.get_form_questions(form_id)
+                submissions = list(client.iter_submissions(form_id))
+            if not include_deleted:
+                submissions = [s for s in submissions if s.get("status") != "DELETED"]
+            with tempfile.TemporaryDirectory() as tmp:
+                export = Path(tmp) / "submissions.csv"
+                subs.write_csv(export, questions, submissions, normalize=True)
+                result = reports.run_query(sql, export)
+    except (JotformError, reports.ReportError) as e:
+        err_console.print(f"[red]Error:[/red] {escape(str(e))}")
+        raise typer.Exit(1) from None
+
+    if csv_out:
+        with csv_out.open("w", newline="", encoding="utf-8") as f:
+            writer = csv.writer(f)
+            writer.writerow(result.columns)
+            writer.writerows([reports.format_value(v) for v in row] for row in result.rows)
+        console.print(Text(f"Wrote {len(result.rows)} row(s) to {csv_out}"))
+        return
+
+    table = Table(title=f"{escape(report_path.name)} ({len(result.rows)} rows)")
+    for column in result.columns:
+        table.add_column(Text(column))
+    for row in result.rows:
+        table.add_row(*(Text(reports.format_value(v)) for v in row))
+    console.print(table)
 
 
 @questions_app.command("list")

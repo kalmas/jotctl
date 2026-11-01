@@ -1,0 +1,26 @@
+---
+# Example report: copy it into reports/ (gitignored), set `form` to your form's title or ID, then run
+#   poetry run jotctl reports run reports/appointments.yaml  # table in the terminal
+#   poetry run jotctl reports run reports/appointments.yaml --csv out.csv
+#
+# `query` is DuckDB SQL over a `submissions` table. Its columns are the snake_case names written by
+#   poetry run jotctl submissions summary <form> --csv FILE --normalize-headers
+# (submission_id, submitted_at, status, then one per question, cut to 20 characters), so export once
+# and look at the header row to see them. Deleted submissions are left out unless --include-deleted.
+#
+# The query may use the same {{ ... }} date templates as manifests: today, monday … sunday (the next
+# such day), weeks(n), days(n), <day>.at('HH:MM') and | date('<strftime format>').
+form: Weekly Appointment Booking
+query: |-
+  SELECT
+      your_name AS name,
+      phone_number,
+      email_address,
+      -- "Yes" / "No" answers as true / false; anything else is NULL.
+      CASE can_we_contact_you WHEN 'Yes' THEN true WHEN 'No' THEN false END AS opt_in,
+      -- e.g. "11/07/2026 2:30 PM" -> "Sat, Nov 7 at 2:30 PM"
+      strftime(try_strptime(appointment_time, '%m/%d/%Y %I:%M %p'), '%a, %b %-d at %-I:%M %p') AS appointment
+  FROM submissions
+  -- Only this coming Saturday's appointments.
+  WHERE appointment_time LIKE '{{ saturday | date('%m/%d/%Y') }}%'
+  ORDER BY try_strptime(appointment_time, '%m/%d/%Y %I:%M %p')

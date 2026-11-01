@@ -8,6 +8,7 @@ A command-line tool for automating Jotform form administration.
 poetry install
 cp .env.example .env  # Set API Key in .env file; Jotform → Settings → API (Full Access to change forms)
 mkdir -p manifests && cp -n manifests-example/*.yaml manifests/  # Optional: example manifests for `forms apply` (manifests/ is gitignored)
+mkdir -p reports && cp -n reports-example/*.yaml reports/        # Optional: example reports for `reports run` (reports/ is gitignored)
 ```
 
 EU or HIPAA accounts also need `export JOTFORM_REGION=eu` (or `hipaa`), or pass `--region`.
@@ -59,6 +60,12 @@ poetry run jotctl submissions summary 251234567890 --csv submissions.csv --norma
 poetry run jotctl submissions delete 'Form Name'
 poetry run jotctl submissions delete 'Form Name' --purge   # also remove them from the trash for good
 
+# Run a saved report: DuckDB SQL over a form's submissions, fetched live (see reports-example/appointments.yaml).
+# Columns are the --normalize-headers names; the query may use the same {{ ... }} date templates as manifests.
+poetry run jotctl reports run reports/appointments.yaml
+poetry run jotctl reports run reports/appointments.yaml --csv appointments.csv
+poetry run jotctl reports run reports/appointments.yaml --from-csv submissions.csv   # query a saved export instead
+
 # Report how many API requests you have left today (global flag: put it before the subcommand)
 poetry run jotctl --show-quota forms list
 ```
@@ -70,9 +77,9 @@ poetry run jotctl forms list
 
 poetry run jotctl submissions summary 251234567890 --csv data/submissions$(date +%Y-%m-%d).csv --normalize-headers
 
-poetry run scripts/shopper_list.sh data/submissions$(date +%Y-%m-%d).csv
+poetry run jotctl reports run reports/shopper-list.yaml
 
-poetry run scripts/shopper_list.sh data/submissions$(date +%Y-%m-%d).csv -csv > data/shopper_list$(date +%Y-%m-%d)_clean.csv
+poetry run jotctl reports run reports/shopper-list.yaml --csv data/shopper_list$(date +%Y-%m-%d)_clean.csv
 ```
 
 ## Development
