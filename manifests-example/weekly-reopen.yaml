@@ -1,0 +1,49 @@
+---
+# Example manifest: copy it into manifests/ (gitignored) and edit it for your forms, then run
+#   poetry run jotctl forms apply manifests/weekly-reopen.yaml
+# It shows every old → new value and asks before changing anything.
+#
+# Forms are named by exact title or form ID. Under each form:
+#   properties: form settings (see `jotctl forms status --json` for common ones)
+#   questions:  question name (see `jotctl questions list`) → property → value
+#   conditions: condition ID (see `jotctl forms conditions`) → terms → question tested → property → value
+#
+# A value is used as written, or computed:
+#   template: Jinja with date helpers: `today`, `monday` … `sunday` (the next such day, always after
+#             today), `weeks(n)`, `days(n)`, `<day>.at('HH:MM')` and the `date('<strftime format>')`
+#             filter. Wrap arithmetic in parentheses before `| date(...)`.
+#   script:   a shell command whose output is used.
+forms:
+  - Weekly Appointment Booking:
+      properties:
+        status: ENABLED
+        # Close the form this Saturday at 3 PM, or when 100 people have booked.
+        expireDate:
+          template: "{{ saturday.at('15:00') | date('%Y-%m-%d %H:%M') }}"
+        limitSubmission: 100
+        messageOfLimitedForm:
+          template: >-
+            All appointments for this week are booked.
+            Booking opens again on {{ (saturday + weeks(1)) | date('%b %-d') }} at 10 AM.
+      questions:
+        appointmentDate:
+          # Only allow dates from next Monday up to the Monday after.
+          startDate:
+            template: "{{ monday | date('%Y-%m-%d') }}"
+          endDate:
+            template: "{{ (monday + weeks(1)) | date('%Y-%m-%d') }}"
+        pickupDay:
+          defaultDate:
+            template: custom_{{ saturday | date('%Y-%m-%d') }}
+      conditions:
+        '1234567890123':
+          terms:
+            # The condition's term that tests the "appointmentDate" question.
+            appointmentDate:
+              value:
+                template: "{{ saturday | date('%Y-%m-%d') }}"
+  - 251234567890:  # a form can also be named by its ID
+      questions:
+        signupDeadline:
+          defaultDate:
+            template: custom_{{ friday | date('%Y-%m-%d') }}

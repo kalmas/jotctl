@@ -1,0 +1,31 @@
+# Cache and compiled files
+__pycache__/
+*.py[cod]
+.*_cache/
+
+# macOS system files
+.DS_Store
+
+# IDE settings
+.vscode/
+
+# Virtual environment
+.venv/
+
+# Distribution directory
+dist/
+
+# Pytest cache
+.pytest_cache/
+
+# Environment variables file
+.env
+
+# DuckDB last query file
+.last
+
+# Data directory
+data/
+
+# Form manifests, see manifests-example/
+manifests/

@@ -1,0 +1,45 @@
+[project]
+name = "jotctl"
+version = "0.1.0"
+description = "CLI for automating Jotform form administration"
+authors = [
+    {name = "Kyle Almas",email = "kylealmas@gmail.com"}
+]
+readme = "README.md"
+requires-python = ">=3.12,<4.0"
+dependencies = [
+    "typer (>=0.27.3,<0.28.0)",
+    "httpx (>=0.28.1,<0.29.0)",
+    "rich (>=15.0.0,<16.0.0)",
+    "python-dotenv (>=1.2.4,<2.0.0)",
+    "pyyaml (>=6.0.3,<7.0.0)",
+    "jinja2 (>=3.1.6,<4.0.0)"
+]
+
+[project.scripts]
+jotctl = "jotctl.cli:app"
+
+[tool.poetry]
+packages = [{include = "jotctl", from = "src"}]
+
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^9.1.1"
+ruff = "^0.17.2"
+openapi-spec-validator = "^0.9.0"
+yamlfix = "^1.19.1"
+
+[build-system]
+requires = ["poetry-core>=2.0.0,<3.0.0"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.ruff]
+line-length = 110
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+ignore = ["E501"]  # line length is handled by ruff format
+
+[tool.yamlfix]
+line_length = 110
