@@ -104,7 +104,9 @@ runner = CliRunner()
 
 
 def test_cli_conditions_table(mock_api):
-    result = runner.invoke(cli.app, ["--api-key", "k", "forms", "conditions", "42"], env={"COLUMNS": "200"})
+    result = runner.invoke(
+        cli.app, ["--api-key", "k", "get", "conditions", "--form", "42"], env={"COLUMNS": "200"}
+    )
     assert result.exit_code == 0, result.output
     assert "Conditions on form 42 (2)" in result.output
     assert 'time before "10:00 AM" and language equals "Español"' in result.output
@@ -113,7 +115,7 @@ def test_cli_conditions_table(mock_api):
 
 
 def test_cli_conditions_json(mock_api):
-    result = runner.invoke(cli.app, ["--api-key", "k", "forms", "conditions", "42", "--json"])
+    result = runner.invoke(cli.app, ["--api-key", "k", "get", "conditions", "--form", "42", "-o", "json"])
     assert result.exit_code == 0, result.output
     data = json.loads(result.stdout)
     assert [c["id"] for c in data] == ["1", "2"]
@@ -122,13 +124,13 @@ def test_cli_conditions_json(mock_api):
 
 
 def test_cli_conditions_none(mock_api):
-    result = runner.invoke(cli.app, ["--api-key", "k", "forms", "conditions", "7"])
+    result = runner.invoke(cli.app, ["--api-key", "k", "get", "conditions", "--form", "7"])
     assert result.exit_code == 0, result.output
     assert "No conditions found." in result.output
 
 
 def test_cli_conditions_unknown_form(mock_api):
-    result = runner.invoke(cli.app, ["--api-key", "k", "forms", "conditions", "999"])
+    result = runner.invoke(cli.app, ["--api-key", "k", "get", "conditions", "--form", "999"])
     assert result.exit_code == 1
     assert "Not found" in result.stderr
 

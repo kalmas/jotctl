@@ -1,12 +1,12 @@
 ---
 # Example manifest: copy it into manifests/ (gitignored) and edit it for your forms, then run
-#   poetry run jotctl forms apply manifests/weekly-reopen.yaml
-# It shows every old → new value and asks before changing anything.
+#   poetry run jotctl diff -f manifests/weekly-reopen.yaml  # just show the old → new values
+#   poetry run jotctl apply -f manifests/weekly-reopen.yaml  # show them, ask, then change the forms
 #
 # Forms are named by exact title or form ID. Under each form:
-#   properties: form settings (see `jotctl forms status --json` for common ones)
-#   questions:  question name (see `jotctl questions list`) → property → value
-#   conditions: condition ID (see `jotctl forms conditions`) → terms → question tested → property → value
+#   properties: form settings (see `jotctl describe form <form> -o yaml` for common ones)
+#   questions:  question name (see `jotctl get questions --form <form>`) → property → value
+#   conditions: condition ID (see `jotctl get conditions --form <form>`) → terms → question tested → property → value
 #
 # A value is used as written, or computed:
 #   template: Jinja with date helpers: `today`, `monday` … `sunday` (the next such day, always after

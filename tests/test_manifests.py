@@ -171,7 +171,7 @@ def posts(requests):
 
 def test_cli_apply_shows_changes_and_applies_on_confirm(mock_api, manifest_file):
     result = runner.invoke(
-        cli.app, ["--api-key", "k", "forms", "apply", str(manifest_file)], input="y\n", env={"COLUMNS": "200"}
+        cli.app, ["--api-key", "k", "apply", "-f", str(manifest_file)], input="y\n", env={"COLUMNS": "200"}
     )
     assert result.exit_code == 0, result.output
     assert "Changes from manifest.yaml (3)" in result.output
@@ -189,14 +189,14 @@ def test_cli_apply_shows_changes_and_applies_on_confirm(mock_api, manifest_file)
 
 
 def test_cli_apply_declined_sends_nothing(mock_api, manifest_file):
-    result = runner.invoke(cli.app, ["--api-key", "k", "forms", "apply", str(manifest_file)], input="n\n")
+    result = runner.invoke(cli.app, ["--api-key", "k", "apply", "-f", str(manifest_file)], input="n\n")
     assert result.exit_code == 0, result.output
     assert "No changes made." in result.output
     assert not posts(mock_api)
 
 
 def test_cli_apply_yes_skips_prompt(mock_api, manifest_file):
-    result = runner.invoke(cli.app, ["--api-key", "k", "forms", "apply", str(manifest_file), "--yes"])
+    result = runner.invoke(cli.app, ["--api-key", "k", "apply", "-f", str(manifest_file), "--yes"])
     assert result.exit_code == 0, result.output
     assert "Apply" not in result.output
     assert len(posts(mock_api)) == 2
@@ -205,7 +205,7 @@ def test_cli_apply_yes_skips_prompt(mock_api, manifest_file):
 def test_cli_apply_nothing_to_change(mock_api, tmp_path):
     path = tmp_path / "manifest.yaml"
     path.write_text("forms:\n  - Contact Us:\n      questions:\n        thisSaturday: {required: false}\n")
-    result = runner.invoke(cli.app, ["--api-key", "k", "forms", "apply", str(path)])
+    result = runner.invoke(cli.app, ["--api-key", "k", "apply", "-f", str(path)])
     assert result.exit_code == 0, result.output
     assert "No changes" in result.output
     assert not posts(mock_api)
@@ -214,7 +214,7 @@ def test_cli_apply_nothing_to_change(mock_api, tmp_path):
 def test_cli_apply_unknown_question_sends_nothing(mock_api, tmp_path):
     path = tmp_path / "manifest.yaml"
     path.write_text("forms:\n  - Contact Us:\n      questions:\n        nope: {required: true}\n")
-    result = runner.invoke(cli.app, ["--api-key", "k", "forms", "apply", str(path)], input="y\n")
+    result = runner.invoke(cli.app, ["--api-key", "k", "apply", "-f", str(path)], input="y\n")
     assert result.exit_code == 1
     assert "no question named 'nope'" in result.stderr
     assert not posts(mock_api)
@@ -362,7 +362,7 @@ def test_cli_apply_conditions(cond_api, tmp_path):
     backups = tmp_path / "backups"
     result = runner.invoke(
         cli.app,
-        ["--api-key", "k", "forms", "apply", str(path), "--backup-dir", str(backups)],
+        ["--api-key", "k", "apply", "-f", str(path), "--backup-dir", str(backups)],
         input="y\n",
         env={"COLUMNS": "300"},
     )
@@ -385,7 +385,7 @@ def test_cli_apply_conditions_declined(cond_api, tmp_path):
     path.write_text(COND_MANIFEST)
     backups = tmp_path / "backups"
     result = runner.invoke(
-        cli.app, ["--api-key", "k", "forms", "apply", str(path), "--backup-dir", str(backups)], input="n\n"
+        cli.app, ["--api-key", "k", "apply", "-f", str(path), "--backup-dir", str(backups)], input="n\n"
     )
     assert result.exit_code == 0, result.output
     assert not [r for r in cond_api["requests"] if r.method == "PUT"]
@@ -398,7 +398,7 @@ def test_cli_apply_conditions_not_reflected(cond_api, tmp_path):
     path.write_text(COND_MANIFEST)
     result = runner.invoke(
         cli.app,
-        ["--api-key", "k", "forms", "apply", str(path), "--yes", "--backup-dir", str(tmp_path / "b")],
+        ["--api-key", "k", "apply", "-f", str(path), "--yes", "--backup-dir", str(tmp_path / "b")],
         env={"COLUMNS": "300"},
     )
     assert result.exit_code == 1
@@ -414,7 +414,7 @@ def test_cli_apply_conditions_backup_failure_sends_nothing(cond_api, tmp_path):
     blocker.write_text("")
     result = runner.invoke(
         cli.app,
-        ["--api-key", "k", "forms", "apply", str(path), "--yes", "--backup-dir", str(blocker / "sub")],
+        ["--api-key", "k", "apply", "-f", str(path), "--yes", "--backup-dir", str(blocker / "sub")],
         env={"COLUMNS": "300"},
     )
     assert result.exit_code == 1
@@ -530,7 +530,7 @@ def test_cli_apply_properties(props_api, tmp_path):
     path = tmp_path / "manifest.yaml"
     path.write_text(PROPS_MANIFEST)
     result = runner.invoke(
-        cli.app, ["--api-key", "k", "forms", "apply", str(path)], input="y\n", env={"COLUMNS": "200"}
+        cli.app, ["--api-key", "k", "apply", "-f", str(path)], input="y\n", env={"COLUMNS": "200"}
     )
     assert result.exit_code == 0, result.output
     assert "Changes from manifest.yaml (2)" in result.output
@@ -550,7 +550,7 @@ def test_cli_apply_properties_with_conditions(props_api, tmp_path):
     )
     result = runner.invoke(
         cli.app,
-        ["--api-key", "k", "forms", "apply", str(path), "--yes", "--backup-dir", str(tmp_path / "b")],
+        ["--api-key", "k", "apply", "-f", str(path), "--yes", "--backup-dir", str(tmp_path / "b")],
         env={"COLUMNS": "200"},
     )
     assert result.exit_code == 0, result.output
@@ -565,7 +565,7 @@ def test_cli_apply_properties_not_applied(props_api, tmp_path):
     path = tmp_path / "manifest.yaml"
     path.write_text(PROPS_MANIFEST)
     result = runner.invoke(
-        cli.app, ["--api-key", "k", "forms", "apply", str(path), "--yes"], env={"COLUMNS": "300"}
+        cli.app, ["--api-key", "k", "apply", "-f", str(path), "--yes"], env={"COLUMNS": "300"}
     )
     assert result.exit_code == 1
     assert "Jotform didn't apply status on 42" in result.stderr
@@ -575,7 +575,7 @@ def test_cli_apply_hides_secret_properties(props_api, tmp_path):
     path = tmp_path / "manifest.yaml"
     path.write_text("forms:\n  - '42':\n      properties:\n        passwordProtectPass: new-secret\n")
     result = runner.invoke(
-        cli.app, ["--api-key", "k", "forms", "apply", str(path)], input="n\n", env={"COLUMNS": "200"}
+        cli.app, ["--api-key", "k", "apply", "-f", str(path)], input="n\n", env={"COLUMNS": "200"}
     )
     assert result.exit_code == 0, result.output
     assert "passwordProtectPass" in result.output and "(hidden)" in result.output
@@ -602,3 +602,58 @@ def test_example_manifest_is_valid():
     assert len(values) == 9
     for value in values:
         assert resolve_value(value)
+
+
+def test_cli_apply_dry_run(props_api, tmp_path):
+    path = tmp_path / "manifest.yaml"
+    path.write_text(PROPS_MANIFEST)
+    result = runner.invoke(
+        cli.app, ["--api-key", "k", "apply", "-f", str(path), "--dry-run"], env={"COLUMNS": "200"}
+    )
+    assert result.exit_code == 0, result.output
+    assert "Changes from manifest.yaml (2)" in result.output
+    assert "Dry run: no changes made." in result.output
+    assert "Apply 2 change(s)?" not in result.output
+    assert not puts(props_api)
+
+
+@pytest.mark.parametrize(
+    ("manifest_text", "exit_code", "expected"),
+    [
+        (PROPS_MANIFEST, 1, "Changes from manifest.yaml (2)"),
+        ("forms:\n  - '42':\n      properties:\n        status: DISABLED\n", 0, "No changes"),
+        (
+            "forms:\n  - '42':\n      questions:\n        nope: {required: true}\n",
+            2,
+            "no question named 'nope'",
+        ),
+    ],
+)
+def test_cli_diff_exit_codes(props_api, tmp_path, manifest_text, exit_code, expected):
+    path = tmp_path / "manifest.yaml"
+    path.write_text(manifest_text)
+    result = runner.invoke(cli.app, ["--api-key", "k", "diff", "-f", str(path)], env={"COLUMNS": "200"})
+    assert result.exit_code == exit_code, result.output
+    assert expected in result.output
+    assert not puts(props_api)
+
+
+def test_cli_apply_folder_and_repeated_f(props_api, tmp_path):
+    folder = tmp_path / "manifests"
+    folder.mkdir()
+    (folder / "a.yaml").write_text("forms:\n  - '42':\n      properties:\n        status: ENABLED\n")
+    (folder / "b.yml").write_text("forms:\n  - '42':\n      properties:\n        messageOfLimitedForm: Hi\n")
+    (folder / "notes.txt").write_text("ignored")
+    extra = tmp_path / "c.yaml"
+    extra.write_text("forms:\n  - '42':\n      properties:\n        limitSubmission: 5\n")
+    result = runner.invoke(
+        cli.app, ["--api-key", "k", "diff", "-f", str(folder), "-f", str(extra)], env={"COLUMNS": "200"}
+    )
+    assert result.exit_code == 1, result.output
+    assert "Changes from 3 files (3)" in result.output
+
+
+def test_cli_apply_empty_folder(props_api, tmp_path):
+    result = runner.invoke(cli.app, ["--api-key", "k", "apply", "-f", str(tmp_path)])
+    assert result.exit_code == 1
+    assert "has no .yaml or .yml files" in result.stderr

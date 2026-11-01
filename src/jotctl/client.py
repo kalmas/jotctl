@@ -179,7 +179,7 @@ class JotformClient:
             f for f in forms if f.get("title", "").casefold() == form.casefold()
         ]
         if not matches:
-            raise JotformError(f'No form titled "{form}" (see `jotctl forms list`)')
+            raise JotformError(f'No form titled "{form}" (see `jotctl get forms`)')
         if len(matches) > 1:
             ids = ", ".join(f.get("id", "?") for f in matches)
             raise JotformError(f'{len(matches)} forms are titled "{form}" ({ids}); use the form ID')

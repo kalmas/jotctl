@@ -42,13 +42,13 @@ def run(*args):
 
 
 def test_quiet_by_default(mock_api):
-    result = run("forms", "list", "--json")
+    result = run("get", "forms", "-o", "json")
     assert result.exit_code == 0, result.output
     assert result.stderr == ""
 
 
 def test_verbose_logs_requests_to_stderr(mock_api):
-    result = run("-v", "forms", "list", "--json")
+    result = run("-v", "get", "forms", "-o", "json")
     assert result.exit_code == 0, result.output
     assert result.stderr.splitlines() == ["GET /user/forms?limit=20&offset=0 200"]
     assert json.loads(result.stdout) == FORMS  # stdout stays clean
@@ -56,13 +56,13 @@ def test_verbose_logs_requests_to_stderr(mock_api):
 
 
 def test_verbose_logs_errors(mock_api):
-    result = run("-v", "forms", "status", "999")
+    result = run("-v", "describe", "form", "999")
     assert result.exit_code == 1
     assert "GET /form/999/properties 404" in result.stderr
 
 
 def test_very_verbose_logs_bodies_without_wrapping_or_secrets(mock_api):
-    result = run("-vv", "forms", "status", "42")
+    result = run("-vv", "describe", "form", "42")
     assert result.exit_code == 0, result.output
     lines = result.stderr.splitlines()
     assert lines[0] == "GET /form/42/properties 200"
@@ -89,7 +89,7 @@ def test_very_verbose_logs_request_bodies(monkeypatch, tmp_path):
     manifest.write_text(
         "forms:\n  - '42':\n      properties:\n        status: DISABLED\n        passwordProtectPass: s3cret\n"
     )
-    result = run("-vv", "forms", "apply", str(manifest), "--yes")
+    result = run("-vv", "apply", "-f", str(manifest), "--yes")
     assert result.exit_code == 0, result.output
     lines = result.stderr.splitlines()
     put = lines.index("PUT /form/42/properties 200")
@@ -111,6 +111,6 @@ def test_redact():
 
 
 def test_flag_can_be_repeated_as_separate_options(mock_api):
-    result = run("-v", "-v", "forms", "status", "42")
+    result = run("-v", "-v", "describe", "form", "42")
     assert result.exit_code == 0, result.output
     assert "response body: " in result.stderr

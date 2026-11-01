@@ -78,7 +78,7 @@ runner = CliRunner()
 
 
 def test_cli_status_closed(mock_api):
-    result = runner.invoke(cli.app, ["--api-key", "k", "forms", "status", "42"], env={"COLUMNS": "200"})
+    result = runner.invoke(cli.app, ["--api-key", "k", "describe", "form", "42"], env={"COLUMNS": "200"})
     assert result.exit_code == 0, result.output
     assert "Shopping (42)" in result.output
     assert "DISABLED" in result.output
@@ -88,7 +88,7 @@ def test_cli_status_closed(mock_api):
 
 
 def test_cli_status_open_json_hides_password(mock_api):
-    result = runner.invoke(cli.app, ["--api-key", "k", "forms", "status", "43", "--json"])
+    result = runner.invoke(cli.app, ["--api-key", "k", "describe", "form", "43", "-o", "json"])
     assert result.exit_code == 0, result.output
     data = json.loads(result.stdout)
     assert data["id"] == "43" and data["title"] == "Sign Up"
@@ -97,7 +97,7 @@ def test_cli_status_open_json_hides_password(mock_api):
 
 
 def test_cli_status_table_hides_password(mock_api):
-    result = runner.invoke(cli.app, ["--api-key", "k", "forms", "status", "43"], env={"COLUMNS": "200"})
+    result = runner.invoke(cli.app, ["--api-key", "k", "describe", "form", "43"], env={"COLUMNS": "200"})
     assert result.exit_code == 0, result.output
     assert "not set" in result.output
     assert "48 (3 submitted, 45 left)" in result.output
@@ -105,6 +105,6 @@ def test_cli_status_table_hides_password(mock_api):
 
 
 def test_cli_status_unknown_form(mock_api):
-    result = runner.invoke(cli.app, ["--api-key", "k", "forms", "status", "999"])
+    result = runner.invoke(cli.app, ["--api-key", "k", "describe", "form", "999"])
     assert result.exit_code == 1
     assert "Not found" in result.stderr

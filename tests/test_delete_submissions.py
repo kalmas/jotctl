@@ -61,7 +61,18 @@ runner = CliRunner()
 def delete(tmp_path, *args, input=None):
     return runner.invoke(
         cli.app,
-        ["--api-key", "k", "submissions", "delete", "42", "--backup-dir", str(tmp_path / "b"), *args],
+        [
+            "--api-key",
+            "k",
+            "delete",
+            "submissions",
+            "--form",
+            "42",
+            "--all",
+            "--backup-dir",
+            str(tmp_path / "b"),
+            *args,
+        ],
         input=input,
         env={"COLUMNS": "200"},
     )
@@ -134,9 +145,11 @@ def test_backup_failure_deletes_nothing(api, tmp_path):
         [
             "--api-key",
             "k",
-            "submissions",
             "delete",
+            "submissions",
+            "--form",
             "42",
+            "--all",
             "--yes",
             "--backup-dir",
             str(tmp_path / "b" / "sub"),
@@ -174,9 +187,37 @@ def test_read_only_key_explains_permission(api, tmp_path, monkeypatch):
     )
     result = runner.invoke(
         cli.app,
-        ["--api-key", "k", "submissions", "delete", "42", "--yes", "--backup-dir", str(tmp_path / "b")],
+        [
+            "--api-key",
+            "k",
+            "delete",
+            "submissions",
+            "--form",
+            "42",
+            "--all",
+            "--yes",
+            "--backup-dir",
+            str(tmp_path / "b"),
+        ],
         env={"COLUMNS": "400"},
     )
     assert result.exit_code == 1
     assert "needs an API key with Full Access" in result.stderr
     assert "Before the error" not in result.stderr  # nothing was deleted
+
+
+def test_requires_all(api, tmp_path):
+    result = runner.invoke(cli.app, ["--api-key", "k", "delete", "submissions", "--form", "42", "--yes"])
+    assert result.exit_code == 1
+    assert "pass --all" in result.stderr
+    assert not api["deletes"]
+
+
+def test_dry_run_deletes_nothing(api, tmp_path):
+    result = delete(tmp_path, "--purge", "--dry-run")
+    assert result.exit_code == 0, result.output
+    assert "1 → permanently deleted" in result.output
+    assert "Dry run: no submissions deleted." in result.output
+    assert "Type the form ID" not in result.output
+    assert not api["deletes"]
+    assert not (tmp_path / "b").exists()

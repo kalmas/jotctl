@@ -34,7 +34,7 @@ class Condition:
     actions: list[dict[str, Any]]
 
     def to_json(self) -> dict[str, Any]:
-        """The condition as plain data, for `--json` output."""
+        """The condition as plain data, for `-o json` and `-o yaml` output."""
         return {
             "id": self.id,
             "type": self.type,

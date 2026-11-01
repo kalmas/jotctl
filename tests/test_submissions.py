@@ -1,4 +1,5 @@
 import csv
+import json
 
 import httpx
 import pytest
@@ -197,7 +198,7 @@ runner = CliRunner()
 
 
 def test_cli_summary_excludes_deleted_by_default(mock_api):
-    result = runner.invoke(cli.app, ["--api-key", "k", "submissions", "summary", "42"])
+    result = runner.invoke(cli.app, ["--api-key", "k", "describe", "submissions", "--form", "42"])
     assert result.exit_code == 0, result.output
     assert "Contact [bold]Us (42)" in result.output  # titles are not parsed as Rich markup
     assert "Submissions  2" in result.output
@@ -206,35 +207,70 @@ def test_cli_summary_excludes_deleted_by_default(mock_api):
 
 
 def test_cli_summary_include_deleted(mock_api):
-    result = runner.invoke(cli.app, ["--api-key", "k", "submissions", "summary", "42", "--include-deleted"])
+    result = runner.invoke(
+        cli.app, ["--api-key", "k", "describe", "submissions", "--form", "42", "--include-deleted"]
+    )
     assert result.exit_code == 0, result.output
     assert "Submissions  3" in result.output
     assert "ACTIVE: 2, DELETED: 1" in result.output
 
 
-def test_cli_summary_writes_csv(mock_api, tmp_path):
-    path = tmp_path / "subs.csv"
-    result = runner.invoke(cli.app, ["--api-key", "k", "submissions", "summary", "42", "--csv", str(path)])
+def test_cli_get_submissions_csv(mock_api):
+    result = runner.invoke(cli.app, ["--api-key", "k", "get", "submissions", "--form", "42", "-o", "csv"])
     assert result.exit_code == 0, result.output
-    with path.open(encoding="utf-8-sig") as f:
-        rows = list(csv.reader(f))
-    assert [r[0] for r in rows] == ["Submission ID", "101", "102"]
+    rows = list(csv.reader(result.stdout.splitlines()))
+    assert rows[0][:3] == ["Submission ID", "Submitted at", "Status"]
+    assert [r[0] for r in rows] == ["Submission ID", "101", "102"]  # deleted ones left out
+    assert len(rows[0]) > 3  # every answer column
+
+
+def test_cli_get_submissions_normalized_and_deleted(mock_api):
+    args = ["--api-key", "k", "get", "submissions", "--form", "42", "-o", "csv", "--normalize-headers"]
+    result = runner.invoke(cli.app, [*args, "--include-deleted"])
+    assert result.exit_code == 0, result.output
+    rows = list(csv.reader(result.stdout.splitlines()))
+    assert rows[0][:3] == ["submission_id", "submitted_at", "status"]
+    assert len(rows) == 4
+
+
+@pytest.mark.parametrize(
+    ("output", "expected"), [("name", "101\n102\n"), ("table", "Submissions on form 42 (2)")]
+)
+def test_cli_get_submissions_other_outputs(mock_api, output, expected):
+    result = runner.invoke(
+        cli.app,
+        ["--api-key", "k", "get", "submissions", "--form", "42", "-o", output],
+        env={"COLUMNS": "200"},
+    )
+    assert result.exit_code == 0, result.output
+    assert expected in result.stdout
+
+
+def test_cli_describe_submissions_json(mock_api):
+    result = runner.invoke(
+        cli.app, ["--api-key", "k", "describe", "submissions", "--form", "42", "-o", "json"]
+    )
+    assert result.exit_code == 0, result.output
+    data = json.loads(result.stdout)
+    assert (data["id"], data["total"], data["byStatus"]) == ("42", 2, {"ACTIVE": 2})
 
 
 def test_cli_summary_by_title(mock_api):
-    result = runner.invoke(cli.app, ["--api-key", "k", "submissions", "summary", "contact [bold]us"])
+    result = runner.invoke(
+        cli.app, ["--api-key", "k", "describe", "submissions", "--form", "contact [bold]us"]
+    )
     assert result.exit_code == 0, result.output
     assert "Contact [bold]Us (42)" in result.output
     assert "Submissions  2" in result.output
 
 
 def test_cli_summary_unknown_title(mock_api):
-    result = runner.invoke(cli.app, ["--api-key", "k", "submissions", "summary", "Nope"])
+    result = runner.invoke(cli.app, ["--api-key", "k", "describe", "submissions", "--form", "Nope"])
     assert result.exit_code == 1
     assert 'No form titled "Nope"' in result.output
 
 
 def test_cli_summary_unknown_form(mock_api):
-    result = runner.invoke(cli.app, ["--api-key", "k", "submissions", "summary", "999"])
+    result = runner.invoke(cli.app, ["--api-key", "k", "describe", "submissions", "--form", "999"])
     assert result.exit_code == 1
     assert "Not found" in result.output

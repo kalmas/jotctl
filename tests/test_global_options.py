@@ -16,17 +16,17 @@ def hoist(*args):
 @pytest.mark.parametrize(
     ("args", "expected"),
     [
-        (["forms", "list", "-vQ"], ["-vQ", "forms", "list"]),
-        (["forms", "list", "-v", "--json", "-Q"], ["-v", "-Q", "forms", "list", "--json"]),
-        (["forms", "list", "--api-key", "k"], ["--api-key", "k", "forms", "list"]),
-        (["forms", "list", "--region=eu", "--verbose"], ["--region=eu", "--verbose", "forms", "list"]),
+        (["get", "forms", "-vQ"], ["-vQ", "get", "forms"]),
+        (["get", "forms", "-v", "-o", "json", "-Q"], ["-v", "-Q", "get", "forms", "-o", "json"]),
+        (["get", "forms", "--api-key", "k"], ["--api-key", "k", "get", "forms"]),
+        (["get", "forms", "--region=eu", "--verbose"], ["--region=eu", "--verbose", "get", "forms"]),
         # -v is global, -y belongs to `forms apply`.
-        (["forms", "apply", "m.yaml", "-vy"], ["-v", "forms", "apply", "m.yaml", "-y"]),
-        (["forms", "apply", "m.yaml", "-y"], ["forms", "apply", "m.yaml", "-y"]),
+        (["apply", "-f", "m.yaml", "-vy"], ["-v", "apply", "-f", "m.yaml", "-y"]),
+        (["apply", "-f", "m.yaml", "-y"], ["apply", "-f", "m.yaml", "-y"]),
         # Nothing after -- is touched.
-        (["forms", "status", "--", "-v"], ["forms", "status", "--", "-v"]),
+        (["describe", "form", "--", "-v"], ["describe", "form", "--", "-v"]),
         # Global options already in front stay there.
-        (["-vv", "forms", "list"], ["-vv", "forms", "list"]),
+        (["-vv", "get", "forms"], ["-vv", "get", "forms"]),
     ],
 )
 def test_hoist_global_options(args, expected):
@@ -72,9 +72,9 @@ runner = CliRunner()
 @pytest.mark.parametrize(
     "args",
     [
-        ["forms", "list", "-vQ", "--api-key", "k"],
-        ["forms", "-v", "list", "--api-key=k", "-Q"],
-        ["--api-key", "k", "-Q", "forms", "list", "-v"],
+        ["get", "forms", "-vQ", "--api-key", "k"],
+        ["get", "-v", "forms", "--api-key=k", "-Q"],
+        ["--api-key", "k", "-Q", "get", "forms", "-v"],
     ],
 )
 def test_cli_global_options_anywhere(mock_api, args):

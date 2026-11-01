@@ -38,7 +38,7 @@ class Availability:
         return max(self.limit - self.count, 0)
 
     def to_json(self) -> dict[str, Any]:
-        """The settings as plain data, for `--json` output."""
+        """The settings as plain data, for `-o json` and `-o yaml` output."""
         return {
             "status": self.status,
             "expireDate": self.expire_date,

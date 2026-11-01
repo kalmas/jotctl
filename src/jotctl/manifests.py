@@ -1,9 +1,9 @@
 """Load form manifests (YAML) and work out the changes they ask for.
 
 A manifest lists forms by title or ID. Under each, `properties` sets form properties (see
-`jotctl forms status`), `questions` sets question properties by question name, and
+`jotctl describe form`), `questions` sets question properties by question name, and
 `conditions` sets properties of a condition's terms, by condition ID (see
-`jotctl forms conditions`) and the question the term tests:
+`jotctl get conditions --form ...`) and the question the term tests:
 
     forms:
       - My Form:
@@ -258,7 +258,7 @@ def plan_changes(manifest: FormManifest, questions: dict[str, dict[str, Any]]) -
         question = by_name.get(name) or next((q for q in by_name.values() if q.qid == str(name)), None)
         if question is None:
             raise ManifestError(
-                f"form {manifest.form!r} has no question named {name!r} (see `jotctl questions list`)"
+                f"form {manifest.form!r} has no question named {name!r} (see `jotctl get questions --form {manifest.form!r}`)"
             )
         for prop, value in props.items():
             try:
@@ -298,7 +298,7 @@ def plan_condition_changes(
     for cid, term_settings in manifest.conditions.items():
         if cid not in by_id:
             raise ManifestError(
-                f"form {manifest.form!r} has no condition {cid} (see `jotctl forms conditions`)"
+                f"form {manifest.form!r} has no condition {cid} (see `jotctl get conditions --form {manifest.form!r}`)"
             )
         terms = decode_json_list(by_id[cid].get("terms"))
         for ref, props in term_settings.items():

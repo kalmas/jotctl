@@ -73,27 +73,27 @@ runner = CliRunner()
 
 
 def test_cli_forms_list_table(mock_cli):
-    result = runner.invoke(cli.app, ["--api-key", "secret", "forms", "list"])
+    result = runner.invoke(cli.app, ["--api-key", "secret", "get", "forms"])
     assert result.exit_code == 0, result.output
     assert "Contact Us" in result.output
     assert "251234567890" in result.output
 
 
 def test_cli_forms_list_json(mock_cli):
-    result = runner.invoke(cli.app, ["--api-key", "secret", "forms", "list", "--json"])
+    result = runner.invoke(cli.app, ["--api-key", "secret", "get", "forms", "-o", "json"])
     assert result.exit_code == 0, result.output
     assert json.loads(result.output) == SAMPLE_FORMS
 
 
 def test_cli_requires_api_key(mock_cli, monkeypatch):
     monkeypatch.delenv("JOTFORM_API_KEY", raising=False)
-    result = runner.invoke(cli.app, ["forms", "list"])
+    result = runner.invoke(cli.app, ["get", "forms"])
     assert result.exit_code == 1
     assert not mock_cli
 
 
 def test_cli_forms_list_rejects_unknown_order_by(mock_cli):
-    result = runner.invoke(cli.app, ["--api-key", "secret", "forms", "list", "--order-by", "bogus"])
+    result = runner.invoke(cli.app, ["--api-key", "secret", "get", "forms", "--order-by", "bogus"])
     assert result.exit_code == 2
     assert not mock_cli
 
@@ -106,14 +106,14 @@ def test_client_tracks_limit_left():
 
 
 def test_cli_show_quota(mock_cli):
-    result = runner.invoke(cli.app, ["--api-key", "secret", "--show-quota", "forms", "list", "--json"])
+    result = runner.invoke(cli.app, ["--api-key", "secret", "--show-quota", "get", "forms", "-o", "json"])
     assert result.exit_code == 0, result.output
     assert json.loads(result.stdout) == SAMPLE_FORMS  # quota goes to stderr, JSON stays clean
     assert "API requests remaining today: 4,986" in result.stderr
 
 
 def test_cli_quota_hidden_by_default(mock_cli):
-    result = runner.invoke(cli.app, ["--api-key", "secret", "forms", "list"])
+    result = runner.invoke(cli.app, ["--api-key", "secret", "get", "forms"])
     assert result.exit_code == 0, result.output
     assert "remaining" not in result.output
 
@@ -124,13 +124,13 @@ def test_cli_show_quota_after_api_error(monkeypatch):
     monkeypatch.setattr(
         cli, "JotformClient", lambda key, region: JotformClient(key, region, transport=transport)
     )
-    result = runner.invoke(cli.app, ["--api-key", "bad", "--show-quota", "forms", "list"])
+    result = runner.invoke(cli.app, ["--api-key", "bad", "--show-quota", "get", "forms"])
     assert result.exit_code == 1
     assert "not authorized" in result.stderr
     assert "API requests remaining today: 12" in result.stderr
 
 
 def test_cli_show_quota_short_flag(mock_cli):
-    result = runner.invoke(cli.app, ["--api-key", "secret", "-Q", "forms", "list", "--json"])
+    result = runner.invoke(cli.app, ["--api-key", "secret", "-Q", "get", "forms", "-o", "json"])
     assert result.exit_code == 0, result.output
     assert "API requests remaining today: 4,986" in result.stderr

@@ -1,8 +1,8 @@
 # Notes for coding agents
 
 `jotctl` is a Typer CLI for administering Jotform forms: listing forms and questions, exporting
-and deleting submissions, applying YAML manifests (`forms apply`) and running DuckDB reports
-(`reports run`). Code is in `src/jotctl/`, tests in `tests/`.
+and deleting submissions, applying YAML manifests (`apply -f`, `diff -f`) and running DuckDB reports
+(`report -f`). Commands follow kubectl: `get`, `describe`, `apply`, `diff`, `delete`, with `-o` for output. Code is in `src/jotctl/`, tests in `tests/`.
 
 ## Jotform API reference
 
@@ -27,13 +27,13 @@ Learned while building this tool; check before relying on anything marked unveri
   JSON-encoded strings. Questions are referenced by QID; `language` is a non-question reference.
 - **Updating conditions** means sending the whole list back with
   `PUT /form/{id}/properties` and `{"properties": {"conditions": [...]}}` (unverified that Jotform
-  accepts it). `forms apply` backs up the originals and re-reads the form to check.
+  accepts it). `apply` backs up the originals and re-reads the form to check.
 - **Open/closed settings** are form properties: `status`, `expireDate` + `expireDateTimeZone`
   (`"No Limit"` when unset), `limitSubmission` vs `count`, `messageOfLimitedForm`,
   `passwordProtect`. Never print `passwordProtectPass`.
 - **Deleting submissions:** `DELETE /submission/{id}` moves a submission to the trash (status
   `DELETED`). Deleting it again reportedly removes it for good (unverified);
-  `submissions delete --purge` re-reads the form to check.
+  `delete submissions --all --purge` re-reads the form to check.
 - **Submission statuses** seen: `ACTIVE`, `DELETED`, and `CUSTOM` (meaning unknown).
 
 ## Working in this repo
@@ -41,8 +41,8 @@ Learned while building this tool; check before relying on anything marked unveri
 - `make format`, `make lint` and `make test`. Tests mock HTTP with `httpx.MockTransport`; never
   call the real API from tests.
 - Read-only commands against the real API are fine for checking your work. Don't run anything that
-  changes forms or deletes submissions without the user's explicit go-ahead; to preview
-  `forms apply` or `submissions delete`, answer "n" / give a wrong confirmation.
+  changes forms or deletes submissions without the user's explicit go-ahead; to preview, use
+  `diff -f`, or `--dry-run` on `apply` and `delete submissions`.
 - **Privacy:** `manifests/`, `reports/` and `data/` are gitignored and hold real form names and
   people's personal data. Never copy their contents into tracked files, tests or examples. Use
   generic names and the placeholder form ID `251234567890`, as in `manifests-example/` and

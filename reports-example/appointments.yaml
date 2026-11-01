@@ -1,10 +1,10 @@
 ---
 # Example report: copy it into reports/ (gitignored), set `form` to your form's title or ID, then run
-#   poetry run jotctl reports run reports/appointments.yaml  # table in the terminal
-#   poetry run jotctl reports run reports/appointments.yaml --csv out.csv
+#   poetry run jotctl report -f reports/appointments.yaml  # table in the terminal
+#   poetry run jotctl report -f reports/appointments.yaml -o csv > out.csv
 #
 # `query` is DuckDB SQL over a `submissions` table. Its columns are the snake_case names written by
-#   poetry run jotctl submissions summary <form> --csv FILE --normalize-headers
+#   poetry run jotctl get submissions --form <form> -o csv --normalize-headers
 # (submission_id, submitted_at, status, then one per question, cut to 20 characters), so export once
 # and look at the header row to see them. Deleted submissions are left out unless --include-deleted.
 #

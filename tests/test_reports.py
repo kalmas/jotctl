@@ -1,8 +1,10 @@
 import csv
+import json
 from pathlib import Path
 
 import httpx
 import pytest
+import yaml
 from typer.testing import CliRunner
 
 from jotctl import cli, templates
@@ -124,19 +126,37 @@ def test_cli_from_csv_to_csv(export, tmp_path):
     report.write_text(
         "form: unused\nquery: SELECT your_name, NULLIF(email_address, '') AS email FROM submissions\n"
     )
-    out = tmp_path / "out.csv"
-    result = runner.invoke(
-        cli.app, ["reports", "run", str(report), "--from-csv", str(export), "--csv", str(out)]
-    )
+    result = runner.invoke(cli.app, ["report", "-f", str(report), "--from-csv", str(export), "-o", "csv"])
     assert result.exit_code == 0, result.output
-    assert "Wrote 2 row(s)" in result.output
-    assert out.read_text().splitlines() == ["your_name,email", "Ada,ada@example.com", "Grace,"]
+    assert result.stdout.splitlines() == ["your_name,email", "Ada,ada@example.com", "Grace,"]
+
+
+@pytest.mark.parametrize(("output", "parse"), [("json", json.loads), ("yaml", yaml.safe_load)])
+def test_cli_json_and_yaml(export, tmp_path, output, parse):
+    report = tmp_path / "r.yaml"
+    report.write_text(
+        "form: F\nquery: SELECT your_name, folks, NULLIF(email_address, '') AS email FROM submissions\n"
+    )
+    result = runner.invoke(cli.app, ["report", "-f", str(report), "--from-csv", str(export), "-o", output])
+    assert result.exit_code == 0, result.output
+    assert parse(result.stdout) == [
+        {"your_name": "Ada", "folks": 2, "email": "ada@example.com"},
+        {"your_name": "Grace", "folks": 4, "email": None},
+    ]
+
+
+def test_cli_rejects_name_output(export, tmp_path):
+    report = tmp_path / "r.yaml"
+    report.write_text("form: F\nquery: SELECT 1\n")
+    result = runner.invoke(cli.app, ["report", "-f", str(report), "--from-csv", str(export), "-o", "name"])
+    assert result.exit_code == 2
+    assert "isn't supported here" in result.output
 
 
 def test_cli_query_error(export, tmp_path):
     report = tmp_path / "r.yaml"
     report.write_text("form: F\nquery: SELECT nope FROM submissions\n")
-    result = runner.invoke(cli.app, ["reports", "run", str(report), "--from-csv", str(export)])
+    result = runner.invoke(cli.app, ["report", "-f", str(report), "--from-csv", str(export)])
     assert result.exit_code == 1
     assert "query failed" in result.stderr
 
@@ -177,12 +197,9 @@ def mock_api(monkeypatch):
 def test_cli_fetches_submissions(mock_api, tmp_path, args, names):
     report = tmp_path / "r.yaml"
     report.write_text(REPORT)
-    out = tmp_path / "out.csv"
-    result = runner.invoke(
-        cli.app, ["--api-key", "k", "reports", "run", str(report), "--csv", str(out), *args]
-    )
+    result = runner.invoke(cli.app, ["--api-key", "k", "report", "-f", str(report), "-o", "csv", *args])
     assert result.exit_code == 0, result.output
-    rows = list(csv.reader(out.open()))
+    rows = list(csv.reader(result.stdout.splitlines()))
     assert rows[0] == ["your_name", "status"]
     assert [r[0] for r in rows[1:]] == names
 
@@ -190,7 +207,7 @@ def test_cli_fetches_submissions(mock_api, tmp_path, args, names):
 def test_cli_table_output(mock_api, tmp_path):
     report = tmp_path / "r.yaml"
     report.write_text(REPORT)
-    result = runner.invoke(cli.app, ["--api-key", "k", "reports", "run", str(report)], env={"COLUMNS": "120"})
+    result = runner.invoke(cli.app, ["--api-key", "k", "report", "-f", str(report)], env={"COLUMNS": "120"})
     assert result.exit_code == 0, result.output
-    assert "r.yaml (1 rows)" in result.output
+    assert "r.yaml (1)" in result.output
     assert "Ada" in result.output and "ACTIVE" in result.output

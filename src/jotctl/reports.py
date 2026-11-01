@@ -8,8 +8,8 @@ A report names a form and a DuckDB query over a `submissions` table:
       FROM submissions
       WHERE appt_time LIKE '{{ saturday | date('%m/%d/%Y') }}%'
 
-The table's columns are the snake_case names written by `jotctl submissions summary --csv
-... --normalize-headers`, and DuckDB detects their types (numbers, booleans, timestamps) as
+The table's columns are the snake_case names written by `jotctl get submissions --form ...
+-o csv --normalize-headers`, and DuckDB detects their types (numbers, booleans, timestamps) as
 it would reading that CSV. The query may use the same `{{ ... }}` date templates as
 manifests (see `jotctl.templates`).
 """
