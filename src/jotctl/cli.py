@@ -22,6 +22,7 @@ from typer.core import TyperGroup
 from jotctl import availability, backups, manifests, reports
 from jotctl import conditions as conds
 from jotctl import submissions as subs
+from jotctl.banner import print_banner
 from jotctl.client import FormOrderBy, FormStatus, JotformClient, JotformError, Region
 from jotctl.questions import ordered_questions
 
@@ -85,6 +86,10 @@ class GlobalOptionsGroup(TyperGroup):
         return super().parse_args(ctx, hoist_global_options(args, self.params))
 
     COMMAND_ORDER = ("get", "describe", "apply", "diff", "delete", "report")
+
+    def format_help(self, ctx: typer.Context, formatter: Any) -> None:
+        print_banner(console)
+        super().format_help(ctx, formatter)
 
     def list_commands(self, ctx: typer.Context) -> list[str]:
         names = super().list_commands(ctx)

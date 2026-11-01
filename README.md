@@ -1,5 +1,15 @@
 # jotctl
 
+```
+     ██╗ ██████╗ ████████╗ ██████╗████████╗██╗
+     ██║██╔═══██╗╚══██╔══╝██╔════╝╚══██╔══╝██║
+     ██║██║   ██║   ██║   ██║        ██║   ██║
+██   ██║██║   ██║   ██║   ██║        ██║   ██║
+╚█████╔╝╚██████╔╝   ██║   ╚██████╗   ██║   ███████╗
+ ╚════╝  ╚═════╝    ╚═╝    ╚═════╝   ╚═╝   ╚══════╝
+   kubectl-style control for your Jotform forms
+```
+
 A command-line tool for automating Jotform form administration.
 
 ## Setup
