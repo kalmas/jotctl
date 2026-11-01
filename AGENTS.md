@@ -18,6 +18,8 @@ and deleting submissions, applying YAML manifests (`forms apply`) and running Du
 Learned while building this tool; check before relying on anything marked unverified.
 
 - **Responses** carry `limit-left` (requests left today); `JotformClient.limit_left` tracks it.
+- **Debugging:** `jotctl -v …` logs every request (method, path, status) and `-vv` adds both
+  bodies, to stderr. Use it to see exactly what the API returned.
 - **API key permission:** changing anything needs a **Full Access** key. A Read Access key gets
   `401 You're not authorized to use (/submission-id)` (or similar) on POST/PUT/DELETE.
 - **Form conditions** are the `conditions` entry of `GET /form/{id}/properties` (asking for

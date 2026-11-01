@@ -1,11 +1,20 @@
 """Thin wrapper around the Jotform REST API."""
 
 import json
+import logging
 from collections.abc import Iterator
 from enum import StrEnum
 from typing import Any
+from urllib.parse import parse_qsl, urlencode
 
 import httpx
+
+# Each request is logged at INFO ("GET /form/42 200") and its bodies at DEBUG; the CLI's
+# -v / -vv flags turn these on.
+logger = logging.getLogger("jotctl.http")
+
+# Values never written to logs, wherever they appear in a body.
+SECRET_FIELDS = {"passwordProtectPass"}
 
 
 class Region(StrEnum):
@@ -102,7 +111,9 @@ class JotformClient:
         try:
             resp = self._http.request(method, path, params=params, data=data, json=json_body)
         except httpx.HTTPError as e:
+            logger.info("%s %s failed: %s", method, path, e)
             raise JotformError(f"Request to Jotform failed: {e}") from e
+        _log_exchange(resp)
 
         try:
             body = resp.json()
@@ -252,3 +263,38 @@ class JotformClient:
             if len(page) < page_size:
                 return
             offset += page_size
+
+
+def _log_exchange(resp: httpx.Response) -> None:
+    """Log a request's method, path and status, plus both bodies when debugging."""
+    request = resp.request
+    logger.info("%s %s %s", request.method, request.url.raw_path.decode(), resp.status_code)
+    if logger.isEnabledFor(logging.DEBUG):
+        if request.content:
+            logger.debug("request body: %s", redact(request.content.decode(errors="replace")))
+        logger.debug("response body: %s", redact(resp.text))
+
+
+def redact(body: str) -> str:
+    """Hide `SECRET_FIELDS` values in a JSON or form-encoded body; other text is returned as-is."""
+    try:
+        return json.dumps(_redact_json(json.loads(body)), ensure_ascii=False)
+    except ValueError:
+        pass
+    pairs = parse_qsl(body, keep_blank_values=True)
+    if pairs and "=" in body:
+        return urlencode([(k, "[redacted]" if _is_secret(k) else v) for k, v in pairs])
+    return body
+
+
+def _redact_json(value: Any) -> Any:
+    if isinstance(value, dict):
+        return {k: "[redacted]" if _is_secret(k) else _redact_json(v) for k, v in value.items()}
+    if isinstance(value, list):
+        return [_redact_json(v) for v in value]
+    return value
+
+
+def _is_secret(key: str) -> bool:
+    # Form-encoded keys look like `properties[passwordProtectPass]`.
+    return any(name in key for name in SECRET_FIELDS)

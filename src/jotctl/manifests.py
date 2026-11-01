@@ -40,6 +40,7 @@ import yaml
 from jinja2 import TemplateError
 
 from jotctl import templates
+from jotctl.client import SECRET_FIELDS
 from jotctl.conditions import decode_json_list
 from jotctl.questions import ordered_questions
 
@@ -47,7 +48,7 @@ from jotctl.questions import ordered_questions
 # which edits individual terms instead of replacing the whole list.
 RESERVED_PROPERTIES = {"conditions"}
 # Form properties whose values are never displayed.
-SECRET_PROPERTIES = {"passwordProtectPass"}
+SECRET_PROPERTIES = SECRET_FIELDS
 
 
 SECTIONS = {"properties", "questions", "conditions"}

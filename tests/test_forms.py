@@ -128,3 +128,9 @@ def test_cli_show_quota_after_api_error(monkeypatch):
     assert result.exit_code == 1
     assert "not authorized" in result.stderr
     assert "API requests remaining today: 12" in result.stderr
+
+
+def test_cli_show_quota_short_flag(mock_cli):
+    result = runner.invoke(cli.app, ["--api-key", "secret", "-Q", "forms", "list", "--json"])
+    assert result.exit_code == 0, result.output
+    assert "API requests remaining today: 4,986" in result.stderr

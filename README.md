@@ -18,6 +18,8 @@ EU or HIPAA accounts also need `export JOTFORM_REGION=eu` (or `hipaa`), or pass 
 ```sh
 poetry run jotctl --help
 
+# Global options (--api-key, --region, -v/-vv, -Q) can go anywhere: `jotctl forms list -vQ` works.
+
 # List forms
 poetry run jotctl forms list
 poetry run jotctl forms list --limit 50 --status ENABLED --order-by created_at
@@ -66,8 +68,12 @@ poetry run jotctl reports run reports/appointments.yaml
 poetry run jotctl reports run reports/appointments.yaml --csv appointments.csv
 poetry run jotctl reports run reports/appointments.yaml --from-csv submissions.csv   # query a saved export instead
 
-# Report how many API requests you have left today (global flag: put it before the subcommand)
-poetry run jotctl --show-quota forms list
+# Report how many API requests you have left today
+poetry run jotctl --show-quota forms list   # or -Q
+
+# Log API requests to stderr
+poetry run jotctl -v forms status 'Form Name'    # GET /form/251234567890/properties 200
+poetry run jotctl -vv forms status 'Form Name'   # also request and response bodies (passwords redacted)
 ```
 
 ## Routines

@@ -2,10 +2,11 @@
 
 import csv
 import json
+import logging
 import tempfile
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Annotated
+from typing import Annotated, Any
 
 import typer
 from dotenv import load_dotenv
@@ -13,6 +14,7 @@ from rich.console import Console
 from rich.markup import escape
 from rich.table import Table
 from rich.text import Text
+from typer.core import TyperGroup
 
 from jotctl import availability, backups, manifests, reports
 from jotctl import conditions as conds
@@ -22,7 +24,65 @@ from jotctl.questions import ordered_questions
 
 load_dotenv()
 
-app = typer.Typer(help="Automate Jotform form administration.", no_args_is_help=True)
+
+def hoist_global_options(args: list[str], params: list[Any]) -> list[str]:
+    """Move the root command's options to the front so they work anywhere on the command line.
+
+    Click only parses an option at the level that declares it, so `jotctl forms list -vQ` would
+    otherwise fail. Combined short flags are split: in `-vy`, `-v` is global and `-y` stays
+    with the subcommand. Everything after `--` is left alone.
+
+    Args:
+        args (list[str]): Command-line arguments, without the program name.
+        params (list[Any]): The root command's Click parameters.
+
+    Returns:
+        list[str]: The same arguments, with global options (and their values) first.
+    """
+    # Typer bundles its own copy of Click, so match options by type name, not isinstance.
+    options = [p for p in params if getattr(p, "param_type_name", None) == "option"]
+    takes_value = {name for o in options if not (o.is_flag or o.count) for name in o.opts + o.secondary_opts}
+    flags = {name for o in options if o.is_flag or o.count for name in o.opts + o.secondary_opts}
+    short_flags = {name[1] for name in flags if len(name) == 2}
+
+    hoisted: list[str] = []
+    rest: list[str] = []
+    i = 0
+    while i < len(args):
+        arg = args[i]
+        if arg == "--":
+            rest.extend(args[i:])
+            break
+        name = arg.split("=", 1)[0]
+        if name in flags:
+            hoisted.append(arg)
+        elif name in takes_value:
+            hoisted.append(arg)
+            if "=" not in arg and i + 1 < len(args):
+                i += 1
+                hoisted.append(args[i])
+        elif arg.startswith("-") and not arg.startswith("--") and len(arg) > 2 and arg[1:].isalpha():
+            # A cluster of short flags such as -vQ or -vy.
+            ours = "".join(c for c in arg[1:] if c in short_flags)
+            theirs = "".join(c for c in arg[1:] if c not in short_flags)
+            if ours:
+                hoisted.append(f"-{ours}")
+            if theirs:
+                rest.append(f"-{theirs}")
+        else:
+            rest.append(arg)
+        i += 1
+    return hoisted + rest
+
+
+class GlobalOptionsGroup(TyperGroup):
+    """Root command group whose options may appear anywhere, e.g. after the subcommand."""
+
+    def parse_args(self, ctx: typer.Context, args: list[str]) -> list[str]:
+        return super().parse_args(ctx, hoist_global_options(args, self.params))
+
+
+app = typer.Typer(help="Automate Jotform form administration.", no_args_is_help=True, cls=GlobalOptionsGroup)
 forms_app = typer.Typer(help="Manage forms.", no_args_is_help=True)
 questions_app = typer.Typer(help="Inspect a form's questions (fields).", no_args_is_help=True)
 submissions_app = typer.Typer(help="Work with form submissions.", no_args_is_help=True)
@@ -63,9 +123,21 @@ def main(
     show_quota: Annotated[
         bool,
         typer.Option(
-            "--show-quota", help="After the command, print how many API requests you have left today."
+            "--show-quota",
+            "-Q",
+            help="After the command, print how many API requests you have left today.",
         ),
     ] = False,
+    verbose: Annotated[
+        int,
+        typer.Option(
+            "--verbose",
+            "-v",
+            count=True,
+            help="Log each API request (method, path, status) to stderr; -vv also logs request and "
+            "response bodies.",
+        ),
+    ] = 0,
 ) -> None:
     """Initialize the Jotform CLI with the given API key and region.
 
@@ -74,8 +146,39 @@ def main(
         api_key (str | None): Jotform API key.
         region (Region): Jotform data region.
         show_quota (bool): Report the remaining daily API requests when the command finishes.
+        verbose (int): 1 logs each request, 2 also logs bodies.
     """
+    configure_logging(verbose)
     ctx.obj = Settings(api_key=api_key, region=region, show_quota=show_quota)
+
+
+class ConsoleLogHandler(logging.Handler):
+    """Write log lines to the stderr console as plain, unwrapped text.
+
+    Going through the console keeps lines clean while a spinner is showing, and not
+    wrapping keeps logged JSON bodies intact for copying.
+    """
+
+    def emit(self, record: logging.LogRecord) -> None:
+        err_console.print(self.format(record), markup=False, highlight=False, soft_wrap=True)
+
+
+def configure_logging(verbosity: int) -> None:
+    """Send API request logs to stderr: none, requests (1) or requests and bodies (2+).
+
+    Args:
+        verbosity (int): Number of -v flags.
+    """
+    http_logger = logging.getLogger("jotctl.http")
+    http_logger.handlers.clear()
+    http_logger.propagate = False
+    if verbosity <= 0:
+        http_logger.setLevel(logging.WARNING)
+        return
+    handler = ConsoleLogHandler()
+    handler.setFormatter(logging.Formatter("%(message)s"))
+    http_logger.addHandler(handler)
+    http_logger.setLevel(logging.DEBUG if verbosity >= 2 else logging.INFO)
 
 
 def get_client(ctx: typer.Context) -> JotformClient:
