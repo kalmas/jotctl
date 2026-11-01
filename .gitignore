@@ -32,3 +32,6 @@ manifests/
 
 # Saved reports (they name real forms and columns); see reports-example/
 reports/
+
+# Local, unofficial OpenAPI reference for agents (see AGENTS.md); not part of the project
+docs/jotform-openapi.yaml

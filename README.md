@@ -85,11 +85,10 @@ poetry run jotctl reports run reports/shopper-list.yaml --csv data/shopper_list$
 ## Development
 
 ```sh
-make format    # ruff format + autofix lint, yamlfix (except the generated OpenAPI spec)
+make format    # ruff format + autofix lint, yamlfix
 make lint      # check Python and YAML formatting and lint without changing files
 make test      # pytest
-make openapi   # regenerate docs/jotform-openapi.yaml from the Jotform API docs (needs node)
 ```
 
-`docs/jotform-openapi.yaml` is an unofficial OpenAPI 3.0 spec built by `scripts/gen_openapi.py`
-from https://api.jotform.com/docs/; use it as a reference for endpoints, parameters and response shapes.
+Notes for coding agents (where the Jotform API docs are, undocumented API behavior, privacy rules)
+are in `AGENTS.md`.
