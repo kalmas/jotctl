@@ -56,10 +56,12 @@ def run(*args):
 def test_table_and_wide():
     table = run("get", "forms")
     assert table.exit_code == 0, table.output
-    assert "Forms (2)" in table.output and "Alpha" in table.output
+    assert "Forms (2)" in table.output
+    assert "Alpha" in table.output
     assert "Created" not in table.output
     wide = run("get", "forms", "-o", "wide")
-    assert "Created" in wide.output and "2026-01-01 00:00:00" in wide.output
+    assert "Created" in wide.output
+    assert "2026-01-01 00:00:00" in wide.output
 
 
 def test_json_yaml_name_csv():

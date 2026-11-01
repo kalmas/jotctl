@@ -175,7 +175,8 @@ def test_cli_apply_shows_changes_and_applies_on_confirm(mock_api, manifest_file)
     )
     assert result.exit_code == 0, result.output
     assert "Changes from manifest.yaml (3)" in result.output
-    assert "10/26/2026" in result.output and "11/02/2026" in result.output
+    assert "10/26/2026" in result.output
+    assert "11/02/2026" in result.output
     assert "(not set)" in result.output
     assert "Apply 3 change(s)?" in result.output
     assert posts(mock_api) == {
@@ -372,11 +373,13 @@ def test_cli_apply_conditions(cond_api, tmp_path):
     assert json.loads(backup.read_text()) == CONDITIONS  # the originals, exactly as read
     assert f"Backed up the conditions on 42 to {backup}" in result.output
     assert "condition 100, term date" in result.output
-    assert "2026-10-24" in result.output and "2026-10-31" in result.output
+    assert "2026-10-24" in result.output
+    assert "2026-10-31" in result.output
     assert "Applied 1 change(s)." in result.output
     (put,) = [r for r in cond_api["requests"] if r.method == "PUT"]
     sent = json.loads(put.content)["properties"]["conditions"]
-    assert len(sent) == 2 and sent[1] == CONDITIONS[1]
+    assert len(sent) == 2
+    assert sent[1] == CONDITIONS[1]
     assert json.loads(sent[0]["terms"])[1]["value"] == "2026-10-31"
 
 
@@ -534,7 +537,8 @@ def test_cli_apply_properties(props_api, tmp_path):
     )
     assert result.exit_code == 0, result.output
     assert "Changes from manifest.yaml (2)" in result.output
-    assert "DISABLED" in result.output and "Opens Sep 7" in result.output
+    assert "DISABLED" in result.output
+    assert "Opens Sep 7" in result.output
     assert puts(props_api) == [
         {"status": "ENABLED", "messageOfLimitedForm": "Opens Oct 31"}
     ]  # one PUT, no conditions
@@ -578,8 +582,10 @@ def test_cli_apply_hides_secret_properties(props_api, tmp_path):
         cli.app, ["--api-key", "k", "apply", "-f", str(path)], input="n\n", env={"COLUMNS": "200"}
     )
     assert result.exit_code == 0, result.output
-    assert "passwordProtectPass" in result.output and "(hidden)" in result.output
-    assert "old-secret" not in result.output and "new-secret" not in result.output
+    assert "passwordProtectPass" in result.output
+    assert "(hidden)" in result.output
+    assert "old-secret" not in result.output
+    assert "new-secret" not in result.output
     assert not puts(props_api)
 
 

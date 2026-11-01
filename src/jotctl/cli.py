@@ -8,7 +8,7 @@ import tempfile
 from dataclasses import dataclass, field
 from enum import StrEnum
 from pathlib import Path
-from typing import Annotated, Any
+from typing import Annotated, Any, ClassVar
 
 import typer
 import yaml
@@ -84,7 +84,7 @@ class GlobalOptionsGroup(TyperGroup):
     def parse_args(self, ctx: typer.Context, args: list[str]) -> list[str]:
         return super().parse_args(ctx, hoist_global_options(args, self.params))
 
-    COMMAND_ORDER = ["get", "describe", "apply", "diff", "delete", "report"]
+    COMMAND_ORDER = ("get", "describe", "apply", "diff", "delete", "report")
 
     def list_commands(self, ctx: typer.Context) -> list[str]:
         names = super().list_commands(ctx)
@@ -99,20 +99,20 @@ app = typer.Typer(help="Automate Jotform form administration.", no_args_is_help=
 class AliasGroup(TyperGroup):
     """Command group that also accepts the singular, plural and short names of its resources."""
 
-    ALIASES = {
-        "form": ["forms"],
-        "forms": ["form"],
-        "question": ["questions"],
-        "q": ["questions"],
-        "condition": ["conditions"],
-        "submission": ["submissions"],
-        "sub": ["submissions"],
-        "subs": ["submissions"],
+    ALIASES: ClassVar[dict[str, tuple[str, ...]]] = {
+        "form": ("forms",),
+        "forms": ("form",),
+        "question": ("questions",),
+        "q": ("questions",),
+        "condition": ("conditions",),
+        "submission": ("submissions",),
+        "sub": ("submissions",),
+        "subs": ("submissions",),
     }
 
     def get_command(self, ctx: typer.Context, cmd_name: str) -> Any:
         command = super().get_command(ctx, cmd_name)
-        for alias in [] if command else self.ALIASES.get(cmd_name, []):
+        for alias in () if command else self.ALIASES.get(cmd_name, ()):
             command = super().get_command(ctx, alias)
             if command:
                 break
@@ -382,7 +382,7 @@ def get_forms(
             rows=[row(f) for f in forms],
             wide_columns=["ID", "Title", "Status", "Submissions", "Last submission", "Created", "Updated"],
             wide_rows=[
-                row(f) + [f.get("last_submission") or "", f.get("created_at", ""), f.get("updated_at") or ""]
+                [*row(f), f.get("last_submission") or "", f.get("created_at", ""), f.get("updated_at") or ""]
                 for f in forms
             ],
             data=forms,

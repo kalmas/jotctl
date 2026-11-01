@@ -1,5 +1,6 @@
 """Thin wrapper around the Jotform REST API."""
 
+import contextlib
 import json
 import logging
 from collections.abc import Iterator
@@ -122,10 +123,9 @@ class JotformClient:
                 f"Unexpected response from Jotform (HTTP {resp.status_code}): {resp.text[:200]}"
             ) from None
 
-        try:
+        # Not every response carries it, and errors may not have a usable value.
+        with contextlib.suppress(KeyError, TypeError, ValueError):
             self.limit_left = int(body["limit-left"])
-        except (KeyError, TypeError, ValueError):
-            pass
 
         # Jotform reports errors both via HTTP status and a `responseCode` in the body.
         code = body.get("responseCode", resp.status_code)

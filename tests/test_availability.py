@@ -91,8 +91,11 @@ def test_cli_status_open_json_hides_password(mock_api):
     result = runner.invoke(cli.app, ["--api-key", "k", "describe", "form", "43", "-o", "json"])
     assert result.exit_code == 0, result.output
     data = json.loads(result.stdout)
-    assert data["id"] == "43" and data["title"] == "Sign Up"
-    assert data["expireDate"] is None and data["remaining"] == 45 and data["passwordProtected"] is True
+    assert data["id"] == "43"
+    assert data["title"] == "Sign Up"
+    assert data["expireDate"] is None
+    assert data["remaining"] == 45
+    assert data["passwordProtected"] is True
     assert "hunter2" not in result.output
 
 

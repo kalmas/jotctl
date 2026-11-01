@@ -95,7 +95,8 @@ def test_very_verbose_logs_request_bodies(monkeypatch, tmp_path):
     put = lines.index("PUT /form/42/properties 200")
     sent = json.loads(lines[put + 1].removeprefix("request body: "))
     assert sent == {"properties": {"status": "DISABLED", "passwordProtectPass": "[redacted]"}}
-    assert "s3cret" not in result.output and "hunter2" not in result.output
+    assert "s3cret" not in result.output
+    assert "hunter2" not in result.output
 
 
 def test_redact():

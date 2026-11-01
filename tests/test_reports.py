@@ -210,4 +210,5 @@ def test_cli_table_output(mock_api, tmp_path):
     result = runner.invoke(cli.app, ["--api-key", "k", "report", "-f", str(report)], env={"COLUMNS": "120"})
     assert result.exit_code == 0, result.output
     assert "r.yaml (1)" in result.output
-    assert "Ada" in result.output and "ACTIVE" in result.output
+    assert "Ada" in result.output
+    assert "ACTIVE" in result.output
