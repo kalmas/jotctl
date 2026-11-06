@@ -65,6 +65,12 @@ poetry run jotctl get submissions --form 251234567890 -o csv > submissions.csv
 poetry run jotctl get submissions --form 251234567890 -o csv --normalize-headers > submissions.csv   # snake_case headers, max 20 chars
 poetry run jotctl get submissions --form 251234567890 --include-deleted -o json
 
+# Delete every submission on a form (moved to its trash, restorable from the Inbox). Shows what will be
+# deleted, asks you to type the form ID, and first saves the submissions to data/backups/ as JSON.
+poetry run jotctl delete submissions --form 'Form Name' --all
+poetry run jotctl delete submissions --form 'Form Name' --all --purge     # also remove them from the trash for good
+poetry run jotctl delete submissions --form 'Form Name' --all --dry-run   # show what would be deleted
+
 # Apply manifests: update form properties, question properties, condition terms and emails.
 # See manifests-example/weekly-reopen.yaml for a commented example. Per form:
 #   properties → property (e.g. status, expireDate, limitSubmission, messageOfLimitedForm; see `describe form -o yaml`)
@@ -81,12 +87,6 @@ poetry run jotctl diff -f manifests/weekly-reopen.yaml    # show old → new; ex
 poetry run jotctl apply -f manifests/weekly-reopen.yaml   # show old → new, ask, then apply
 poetry run jotctl apply -f manifests/                     # every .yaml/.yml in the folder
 poetry run jotctl apply -f manifests/weekly-reopen.yaml --dry-run   # show and exit; -y applies without asking
-
-# Delete every submission on a form (moved to its trash, restorable from the Inbox). Shows what will be
-# deleted, asks you to type the form ID, and first saves the submissions to data/backups/ as JSON.
-poetry run jotctl delete submissions --form 'Form Name' --all
-poetry run jotctl delete submissions --form 'Form Name' --all --purge     # also remove them from the trash for good
-poetry run jotctl delete submissions --form 'Form Name' --all --dry-run   # show what would be deleted
 
 # Run a saved report: DuckDB SQL over a form's submissions, fetched live (see reports-example/appointments.yaml).
 # Columns are the --normalize-headers names; the query may use the same {{ ... }} date templates as manifests.
